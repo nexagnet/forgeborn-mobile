@@ -74,6 +74,14 @@ namespace ForgeBorn.UnityLayer
         private readonly Stopwatch _sw = new Stopwatch();
         private string _status = "";
 
+        // Guided first forge (see TutorialFlow).
+        private readonly TutorialFlow _tutorial = new TutorialFlow();
+        private int _hammerHits;
+        private GameObject _tutPanel;
+        private Text _tutStep, _tutTitle, _tutBody, _tutWarn;
+        private Text _speedBtn, _reportBtn, _nextBtn;
+        private float _pulse;
+
         private static string SavePath => Path.Combine(Application.persistentDataPath, "weapon_slot1.fbws");
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -297,6 +305,7 @@ namespace ForgeBorn.UnityLayer
             }
 
             TickThermal();
+            _pulse += Time.unscaledDeltaTime;
 
             _hudTimer -= Time.unscaledDeltaTime;
             if (_hudTimer <= 0f)
@@ -412,6 +421,7 @@ namespace ForgeBorn.UnityLayer
 
             if (!res.Accepted) { _status = "rejected: " + res.Reason; return; }
             if (!res.Hit) { _status = "missed the blade"; return; }
+            if (res.StationsTouched > 0 && !res.Cold) _hammerHits++;
 
             if (res.StationsTouched > 0)
             {
@@ -510,7 +520,7 @@ namespace ForgeBorn.UnityLayer
             MakeButton(safe, 0, 4, 1, "Press -", () => _pressureN = Mathf.Max((float)SandboxRules.MinPressureN, _pressureN - PressureStepN));
             MakeButton(safe, 1, 4, 1, "Press +", () => _pressureN = Mathf.Min((float)SandboxRules.MaxPressureN, _pressureN + PressureStepN));
             MakeButton(safe, 2, 4, 1, "Zoom", CycleZoom);
-            MakeButton(safe, 3, 4, 1, "Report", ToggleReport);
+            _reportBtn = MakeButton(safe, 3, 4, 1, "Report", ToggleReport);
 
             _envLabels = new Text[5];
             string[] names = { "Air", "Furnace", "Water", "Oil", "Oven" };
@@ -521,8 +531,11 @@ namespace ForgeBorn.UnityLayer
             }
 
             _speedLabel = MakeButton(safe, 0, 4, 3, "x1", CycleSpeed);
+            _speedBtn = _speedLabel;
             MakeButton(safe, 1, 4, 3, "New blank", NewBlank);
             MakeButton(safe, 2, 4, 3, "Reset view", () => { ResetView(); _camY = BaseCamY; _cam.transform.position = new Vector3(0f, _camY, -2f); });
+            MakeButton(safe, 3, 4, 3, "Guide", () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); });
+            BuildTutorialPanel(safe);
 
             // Report panel (does not block touches).
             _reportPanel = new GameObject("ReportPanel", typeof(RectTransform), typeof(Image));
@@ -536,6 +549,112 @@ namespace ForgeBorn.UnityLayer
             img.raycastTarget = false;
             _reportText = MakeText(prt, "ReportText", 13, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 8), new Vector2(-10, -8));
             _reportPanel.SetActive(false);
+        }
+
+        private void BuildTutorialPanel(RectTransform safe)
+        {
+            _tutPanel = new GameObject("TutorialPanel", typeof(RectTransform), typeof(Image));
+            var rt = _tutPanel.GetComponent<RectTransform>();
+            rt.SetParent(safe, false);
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.offsetMin = new Vector2(8f, -226f);
+            rt.offsetMax = new Vector2(-8f, -82f);
+            var img = _tutPanel.GetComponent<Image>();
+            img.color = new Color(0.07f, 0.06f, 0.05f, 0.86f);
+            img.raycastTarget = false;
+
+            _tutStep = MakeText(rt, "Step", 12, TextAnchor.UpperRight, Vector2.zero, Vector2.one, new Vector2(8, 6), new Vector2(-8, -6));
+            _tutStep.color = new Color(0.7f, 0.7f, 0.7f);
+            _tutTitle = MakeText(rt, "Title", 16, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 6), new Vector2(-70, -6));
+            _tutTitle.color = new Color(1f, 0.72f, 0.3f);
+            _tutBody = MakeText(rt, "Body", 13, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 40), new Vector2(-10, -28));
+            _tutWarn = MakeText(rt, "Warn", 13, TextAnchor.LowerLeft, Vector2.zero, Vector2.one, new Vector2(10, 6), new Vector2(-150, -6));
+            _tutWarn.color = new Color(1f, 0.4f, 0.3f);
+
+            // Next and Skip live on the panel (buttons block touches only where they are).
+            _nextBtn = MakePanelButton(rt, "Next", 1f, () => _tutorial.Acknowledge());
+            MakePanelButton(rt, "Skip", 0f, () => { _tutorial.Skip(); RefreshHud(); });
+        }
+
+        private static Text MakePanelButton(RectTransform panel, string label, float slot, UnityEngine.Events.UnityAction onClick)
+        {
+            var go = new GameObject("Tut_" + label, typeof(RectTransform), typeof(Image), typeof(Button));
+            var rt = go.GetComponent<RectTransform>();
+            rt.SetParent(panel, false);
+            rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
+            rt.pivot = new Vector2(1f, 0f);
+            rt.sizeDelta = new Vector2(66f, 30f);
+            rt.anchoredPosition = new Vector2(-8f - slot * 72f, 6f);
+            go.GetComponent<Image>().color = new Color(0.3f, 0.32f, 0.38f, 0.95f);
+            go.GetComponent<Button>().onClick.AddListener(onClick);
+            Text t = MakeText(rt, "Label", 14, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            t.text = label;
+            return t;
+        }
+
+        private TutorialSnapshot MakeTutorialSnapshot()
+        {
+            BladeProfile p = _session.Profile;
+            int mid = p.StationCount / 2;
+            return new TutorialSnapshot
+            {
+                MaxTempK = SandboxRules.MaxTempK(p),
+                Hrc = _session.Material.HardnessHrc(p.Martensite[mid], p.TemperP[mid]),
+                TemperP = p.TemperP[mid],
+                RemovedG = (_startMassKg - _session.MassKg) * 1000.0,
+                HammerHits = _hammerHits,
+                Tool = _tool,
+                Env = _env,
+                TimeScale = SandboxRules.TimeScales[_speedIndex],
+                ReportOpen = _showReport,
+                Cracked = SandboxRules.AnyCracked(p),
+            };
+        }
+
+        private Text TargetLabel(TutorialTarget t)
+        {
+            switch (t)
+            {
+                case TutorialTarget.EnvFurnace: return _envLabels[(int)ForgeEnv.Furnace];
+                case TutorialTarget.EnvWater: return _envLabels[(int)ForgeEnv.Water];
+                case TutorialTarget.EnvOven: return _envLabels[(int)ForgeEnv.Oven];
+                case TutorialTarget.Speed: return _speedBtn;
+                case TutorialTarget.ToolButton: return _toolLabel;
+                case TutorialTarget.Report: return _reportBtn;
+                case TutorialTarget.Next: return _nextBtn;
+                default: return null;
+            }
+        }
+
+        private static readonly Color ButtonIdle = new Color(0.25f, 0.27f, 0.32f, 0.95f);
+
+        private void UpdateTutorial()
+        {
+            if (_tutPanel == null) return;
+            TutorialSnapshot snap = MakeTutorialSnapshot();
+            _tutorial.Tick(snap);
+            // Clear all highlights, then light the current target.
+            foreach (Text l in new[] { _toolLabel, _speedBtn, _reportBtn })
+                if (l != null) l.transform.parent.GetComponent<Image>().color = ButtonIdle;
+            foreach (Text l in _envLabels) l.transform.parent.GetComponent<Image>().color = ButtonIdle;
+
+            bool show = !_tutorial.Finished;
+            _tutPanel.SetActive(show);
+            if (!show) return;
+            TutorialStep st = _tutorial.Current;
+            _tutStep.text = (_tutorial.Index + 1) + " / " + _tutorial.Count;
+            _tutTitle.text = st.Title;
+            _tutBody.text = st.Why + "\n" + st.Action;
+            _tutWarn.text = _tutorial.Warning(snap) ?? "";
+            _nextBtn.transform.parent.gameObject.SetActive(st.NeedsAck);
+            Text target = TargetLabel(st.Target);
+            if (target != null && target.transform.parent.gameObject.activeSelf && st.Target != TutorialTarget.Next)
+            {
+                float k = 0.5f + 0.5f * Mathf.Sin(_pulse * 5f);
+                target.transform.parent.GetComponent<Image>().color = Color.Lerp(ButtonIdle, new Color(0.95f, 0.55f, 0.12f, 1f), 0.45f + 0.4f * k);
+            }
         }
 
         private static Text MakeText(RectTransform parent, string name, int size, TextAnchor anchor, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax)
@@ -594,6 +713,7 @@ namespace ForgeBorn.UnityLayer
             for (int i = 0; i < _envLabels.Length; i++)
                 _envLabels[i].color = (int)_env == i ? new Color(1f, 0.7f, 0.25f) : Color.white;
             if (_showReport) _reportText.text = SandboxRules.FormatReport(_session.Evaluate(null));
+            UpdateTutorial();
         }
 
         private void CycleTool()

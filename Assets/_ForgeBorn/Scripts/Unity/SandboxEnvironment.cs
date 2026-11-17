@@ -90,7 +90,10 @@ namespace ForgeBorn.UnityLayer
             RenderSettings.ambientEquatorColor = new Color(0.16f, 0.14f, 0.14f);
             RenderSettings.ambientGroundColor = new Color(0.20f, 0.10f, 0.05f);
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Custom;
-            RenderSettings.customReflectionTexture = BuildCubemap();
+            // Real HDRI (Poly Haven boiler_room, CC0) when imported as a cubemap, otherwise the procedural fallback.
+            Texture env = Resources.Load<Cubemap>("Art/workshop");
+            if (env == null) env = BuildCubemap();
+            RenderSettings.customReflectionTexture = env;
             RenderSettings.reflectionIntensity = 1f;
             DynamicGI.UpdateEnvironment();
 
@@ -110,6 +113,7 @@ namespace ForgeBorn.UnityLayer
                 mr.receiveShadows = false;
             }
 
+            SandboxProps.Build(root.transform, env);
             if (tier != QualityTier.Low) AddPost(root, cam);
             return root;
         }
