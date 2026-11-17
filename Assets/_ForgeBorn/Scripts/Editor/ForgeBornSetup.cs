@@ -94,6 +94,14 @@ namespace ForgeBorn.EditorTools
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         }
 
+        /// <summary>Forces the Unity Remote device to iOS even if the Project Settings dropdown does not list it.</summary>
+        [MenuItem("ForgeBorn/Set Remote iPhone")]
+        public static void SetRemoteIphone()
+        {
+            EditorSettings.unityRemoteDevice = "Any iOS Device";
+            Debug.Log("[ForgeBorn] unityRemoteDevice = '" + EditorSettings.unityRemoteDevice + "'");
+        }
+
         /// <summary>Opens the sandbox scene and enters Play mode (use with Unity Remote 5 connected).</summary>
         [MenuItem("ForgeBorn/Play With Remote")]
         public static void PlayWithRemote()

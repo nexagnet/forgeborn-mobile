@@ -5,7 +5,9 @@ Ghi lại các lỗi thật đã gặp khi dựng dự án, kèm cách xử lý.
 ## Đang mở
 | Vấn đề | Trạng thái |
 |---|---|
-| iPhone chưa hiện hình qua Unity Remote 5 | Windows thấy iPhone (USB VID_05AC), dịch vụ Apple đã Running, Editor đã vào Play; chưa có hình trên iPhone. Chưa rõ nguyên nhân. Cần kiểm tra: Editor `Device = Any iOS Device`, app Remote đang mở, iPhone mở khóa. |
+| Chạm/mài trên iPhone qua Remote | Hình đã lên iPhone (người dùng báo). Chưa xác nhận chạm và mài hoạt động. |
+| Dropdown Unity Remote Device không liệt kê iPhone | Chỉ có None/Any Android Device dù target iOS. Cách đang dùng: menu `ForgeBorn > Set Remote iPhone` (đặt `Any iOS Device`). Chưa rõ vì sao UI không liệt kê; trên UI giá trị hiện là None. |
+| Unity mở bằng quyền admin báo "Administrator Privileges Detected" | Shell của Claude đang elevated nên Unity kế thừa. Bấm "Restart as Standard User"; mở Unity từ shell thường. |
 | Build APK Android | Dừng ở ~45% (IL2CPP), không có APK. Hạ ưu tiên vì không có máy Android. |
 | iOS native / hiệu năng iPhone | Chưa kiểm chứng; cần Mac + Xcode + Apple Developer. |
 
