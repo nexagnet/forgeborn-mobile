@@ -28,8 +28,8 @@ namespace ForgeBorn.UnityLayer
         private const double WheelRpm = 3000.0;
         private const float PressureStepN = 10f;
         private const float ThermalTickS = 0.25f;
-        private static readonly float[] ZoomSizes = { 0.72f, 0.36f, 0.18f };
-        private const float BaseCamY = -0.17f; // keeps the blade clear of the bottom button rows
+        private static readonly float[] ZoomSizes = { 0.78f, 0.39f, 0.2f };
+        private const float BaseCamY = -0.15f; // keeps the blade between the info text (top) and the button rows (bottom)
 
         private float _pressureN = 80f;
 
@@ -83,8 +83,52 @@ namespace ForgeBorn.UnityLayer
                 new GameObject("ForgeSandbox").AddComponent<ForgeSandbox>();
         }
 
+        private bool _initialized;
+
         private void Start()
         {
+            Initialize();
+        }
+
+        // ---------------------------------------------------------------- capture / test hooks (used by the headless screenshot tool)
+
+        public ForgeSession Session => _session;
+
+        /// <summary>Runs the thermal model for simSeconds in the given environment and refreshes visuals (no real-time wait).</summary>
+        public void CaptureThermal(ForgeEnv env, double simSeconds)
+        {
+            ThermalResult r = _session.ApplyThermal(new ThermalCommand(0, SandboxRules.EnvFor(env), simSeconds));
+            _env = env;
+            _status = r.Accepted ? "thermal " + env + " " + SandboxRules.F(simSeconds, 0) + " s" : "thermal rejected: " + r.Reason;
+            _builder.RefreshState();
+        }
+
+        /// <summary>One hammer blow at a blade-local point on the top face (x along the blade, y across), straight down in blade space.</summary>
+        public HammerResult CaptureHammer(double x, double y, double energyJ)
+        {
+            var cmd = new HammerStrikeCommand(_nextCommandId++, 0.0, new Vec3d(x, y, 1.0), new Vec3d(0, 0, -1), energyJ, _faces[_faceIndex]);
+            HammerResult res = _session.ApplyHammer(cmd);
+            if (res.StationsTouched > 0) { _builder.Rebuild(res.FirstStation, res.LastStation); _builder.RefreshState(); }
+            return res;
+        }
+
+        public void CaptureShowReport(bool show, ToolMode tool)
+        {
+            _showReport = show;
+            _reportPanel.SetActive(show);
+            _tool = tool;
+        }
+
+        /// <summary>Forces the HUD to redraw now.</summary>
+        public void CaptureRefreshHud()
+        {
+            RefreshHud();
+        }
+
+        public void Initialize()
+        {
+            if (_initialized) return;
+            _initialized = true;
             _profile = PlatformProfile.Current;
             Application.targetFrameRate = _profile.TargetFps;
             Screen.orientation = ScreenOrientation.Portrait;
@@ -452,13 +496,13 @@ namespace ForgeBorn.UnityLayer
             _reportPanel = new GameObject("ReportPanel", typeof(RectTransform), typeof(Image));
             var prt = _reportPanel.GetComponent<RectTransform>();
             prt.SetParent(safe, false);
-            prt.anchorMin = new Vector2(0.04f, 0.4f);
-            prt.anchorMax = new Vector2(0.96f, 0.8f);
+            prt.anchorMin = new Vector2(0.04f, 0.5f);
+            prt.anchorMax = new Vector2(0.96f, 0.7f);
             prt.offsetMin = prt.offsetMax = Vector2.zero;
             var img = _reportPanel.GetComponent<Image>();
-            img.color = new Color(0.05f, 0.06f, 0.08f, 0.82f);
+            img.color = new Color(0.05f, 0.06f, 0.08f, 0.7f);
             img.raycastTarget = false;
-            _reportText = MakeText(prt, "ReportText", 15, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 8), new Vector2(-10, -8));
+            _reportText = MakeText(prt, "ReportText", 13, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 8), new Vector2(-10, -8));
             _reportPanel.SetActive(false);
         }
 

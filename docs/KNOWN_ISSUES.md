@@ -10,7 +10,7 @@ Ghi lại các lỗi thật đã gặp khi dựng dự án, kèm cách xử lý.
 | Unity mở bằng quyền admin báo "Administrator Privileges Detected" | Shell của Claude đang elevated nên Unity kế thừa. Bấm "Restart as Standard User"; mở Unity từ shell thường. |
 | Build APK Android | Dừng ở ~45% (IL2CPP), không có APK. Hạ ưu tiên vì không có máy Android. |
 | iOS native / hiệu năng iPhone | Chưa kiểm chứng; cần Mac + Xcode + Apple Developer. |
-| Giao diện Phase C chưa được xem bằng mắt | Editor mở lại hiển thị cửa sổ trắng (layout cũ), nên chưa có ảnh chụp. Cần mở Editor bình thường, Play, xem HUD/shader/tia lửa. |
+| Giao diện Phase C chỉ xem qua ảnh render headless | `docs/shots/` (tạo bằng `ForgeBornCapture`, lệnh trong file nguồn). Chưa xem tia lửa, âm thanh, cảm ứng; Editor có cửa sổ trắng khi mở lại bằng layout cũ (Window > Layouts > Default). Lưỡi hiển thị rất mảnh (50 mm trên 800 mm): dùng nút Zoom. |
 | Unity chạy quyền admin treo/đóng băng khi tôi điều khiển | Editor admin hiện hộp thoại "Administrator Privileges" mỗi lần focus, chặn biên dịch; bấm Restart qua Hub không chạy được (project không có trong Hub). Mở Editor bằng Explorer/Hub (không từ shell elevated). Chạy test headless: `Unity.exe -batchmode -nographics -runTests -testPlatform EditMode` (cần đóng Editor). |
 | Thermal tick tốn CPU ở x600 | Mỗi lệnh 150 s mô phỏng ~12 ms trên PC (ước lượng), có thể giật khung trên điện thoại. Đưa ra luồng nền ở Giai đoạn D nếu đo thấy cần. |
 | Audit/`_seenCommandIds` tăng theo thời gian chơi | Grind/hammer gửi lệnh mỗi khung; thermal dùng Id 0 nên không vào danh sách trùng nhưng vẫn ghi audit. Cần gom lệnh. |

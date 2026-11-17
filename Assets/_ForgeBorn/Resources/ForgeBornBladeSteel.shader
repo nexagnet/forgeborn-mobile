@@ -95,7 +95,11 @@ Shader "ForgeBorn/BladeSteel"
                 half crack = i.color.a * step(0.55h, frac(i.positionOS.x * 70.0));
                 col = lerp(col, col * 0.15h, crack);
 
-                col += i.glow;
+                // Heat glow: tone-map the HDR emission to LDR and let it replace the steel colour (hot metal is self-lit,
+                // not a lit grey surface), otherwise additive glow washes out to pastel pink/white.
+                half3 g = (1.0h - exp(-i.glow * 1.2h)) * (0.72h + 0.28h * ndl + 0.1h * streak * _Brush);
+                half cover = saturate(max(g.r, max(g.g, g.b)) * 1.3h);
+                col = lerp(col, g, cover);
                 return half4(col, 1.0h);
             }
             ENDHLSL
