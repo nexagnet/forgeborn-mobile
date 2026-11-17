@@ -13,6 +13,7 @@
 sysinfo.txt
 
 # .NET (headless domain build/tests)
+build/out/
 build/**/bin/
 build/**/obj/
 TestResults/

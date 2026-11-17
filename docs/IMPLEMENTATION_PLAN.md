@@ -59,6 +59,12 @@ Chưa commit; chờ review độc lập (`/code-review`). Ghi chú mô hình: b�
 lưỡi cong/xoắn không đổi thể tích (mặt cắt luôn vuông góc X); tôi dùng nhiệt dung gộp theo trạm + dẫn nhiệt dọc, chưa mô hình cong vênh khi tôi.
 Schema lưu là 2 (đọc được schema 1).
 
+**Trạng thái Giai đoạn C (2026-11-18):** code xong và biên dịch được, 18/18 EditMode (headless). **Chưa xem bằng mắt** (xem DEVICE_MATRIX) và chưa chạy qua Unity Remote.
+Đã có: mesh theo centerline/xoắn + màu nhiệt (phát sáng HDR), màu oxit khi ram, vết nứt; shader thép `ForgeBorn/BladeSteel` (vệt mài, không bóng đổ);
+tia lửa (giới hạn hạt theo profile); âm thanh thủ tục (mài/búa); haptics qua `IHapticsService` (chỉ `Handheld.Vibrate`, chưa kiểm chứng, không phải CoreHaptics);
+UI: GRIND/HAMMER/INSPECT, môi trường Air/Furnace/Water/Oil/Oven, tốc độ thời gian x1..x600, Zoom, báo cáo lưỡi, bar vát sẵn.
+`PlatformProfile` (iOS/Android/Editor-giả-lập) là cấu hình mặc định, **chưa đo trên máy**. Chưa làm: gom lệnh grind (audit tăng theo thời gian), thermal chạy nền, shader shadow.
+
 ### Giai đoạn C — Chất lượng hình ảnh và cảm giác (Editor + Remote)
 - Mesh: tách cạnh sắc (vertex đôi theo góc), pháp tuyến đúng cho vát; chỉ dựng lại đoạn bẩn bằng `Mesh.AllocateWritableMeshData` + Burst/Jobs nếu đo thấy cần.
 - Shader URP thép: vệt mài theo hướng (anisotropic), nhiệt màu (temper colors) từ trường nhiệt, tia lửa (VFX nhẹ, giới hạn hạt theo profile).

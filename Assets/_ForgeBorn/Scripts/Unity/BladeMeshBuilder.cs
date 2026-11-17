@@ -6,8 +6,10 @@ namespace ForgeBorn.UnityLayer
 {
     /// <summary>
     /// Projects a BladeProfile (the single source of truth) onto a Unity Mesh. The mesh is never read back by the Domain.
+    /// Section frames (centerline offset + twist) are applied, so bent and twisted blades render as modelled.
     /// Side vertices are shared per (station, ring index); end caps use their own vertices for flat normals.
     /// Positions are blade-local meters (x length, y width, z thickness).
+    /// Per-vertex state: Color32 = oxide tint (A = crack damage), UV1 (float3) = HDR heat-glow emission.
     /// </summary>
     public sealed class BladeMeshBuilder
     {
@@ -15,6 +17,8 @@ namespace ForgeBorn.UnityLayer
         private readonly int _s, _pc;
         private readonly Vector3[] _verts;
         private readonly Vector3[] _normals;
+        private readonly Color32[] _colors;
+        private readonly Vector3[] _glow;
         private readonly int _capStart, _capEnd; // first vertex index of start / end cap (centre vertex first, then ring)
 
         public Mesh Mesh { get; }
@@ -30,6 +34,8 @@ namespace ForgeBorn.UnityLayer
             int total = side + 2 * (_pc + 1);
             _verts = new Vector3[total];
             _normals = new Vector3[total];
+            _colors = new Color32[total];
+            _glow = new Vector3[total];
 
             Mesh = new Mesh { name = "BladeMesh" };
             Mesh.MarkDynamic();
@@ -37,6 +43,7 @@ namespace ForgeBorn.UnityLayer
 
             BuildTriangles();
             Rebuild(0, _s - 1);
+            RefreshState();
         }
 
         public int VertexCount => _verts.Length;
@@ -45,7 +52,7 @@ namespace ForgeBorn.UnityLayer
         {
             j %= _pc;
             if (j < 0) j += _pc;
-            Vec2d v = _p.Point(s, j);
+            Vec2d v = _p.WorldPoint(s, j);
             return new Vector3((float)_p.X[s], (float)v.X, (float)v.Y);
         }
 
@@ -100,6 +107,27 @@ namespace ForgeBorn.UnityLayer
             Mesh.SetVertices(_verts);
             Mesh.SetNormals(_normals);
             Mesh.RecalculateBounds();
+        }
+
+        /// <summary>Re-reads temperature, tempering and damage of all stations into vertex colours / glow (after thermal commands).</summary>
+        public void RefreshState()
+        {
+            for (int s = 0; s < _s; s++)
+            {
+                Color32 c = BladeVisuals.Tint((float)_p.TemperP[s], (float)_p.Damage[s]);
+                Vector3 g = BladeVisuals.Emission((float)_p.TempK[s]);
+                int b = s * _pc;
+                for (int j = 0; j < _pc; j++) { _colors[b + j] = c; _glow[b + j] = g; }
+                if (s == 0) FillCapState(_capStart, c, g);
+                if (s == _s - 1) FillCapState(_capEnd, c, g);
+            }
+            Mesh.SetColors(_colors);
+            Mesh.SetUVs(1, _glow);
+        }
+
+        private void FillCapState(int start, Color32 c, Vector3 g)
+        {
+            for (int j = 0; j <= _pc; j++) { _colors[start + j] = c; _glow[start + j] = g; }
         }
 
         private void FillCap(int s, int start, Vector3 normal)
