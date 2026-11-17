@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Headless build of the Unity-independent Domain assembly. Unity compiles the same sources via ForgeBorn.Domain.asmdef. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>ForgeBorn.Domain</RootNamespace>
+    <AssemblyName>ForgeBorn.Domain</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\Assets\_ForgeBorn\Scripts\Domain\**\*.cs" LinkBase="Domain" />
+  </ItemGroup>
+
+</Project>

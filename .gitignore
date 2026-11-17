@@ -1,0 +1,32 @@
+# Unity
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emory[Cc]aptures/
+*.csproj.user
+*.apk
+*.aab
+*.unitypackage
+sysinfo.txt
+
+# .NET (headless domain build/tests)
+build/**/bin/
+build/**/obj/
+TestResults/
+
+# IDE / OS
+.vs/
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.keystore
+*.p12
+*.mobileprovision
+.env
