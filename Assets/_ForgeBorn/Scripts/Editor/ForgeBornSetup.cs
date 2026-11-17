@@ -94,6 +94,14 @@ namespace ForgeBorn.EditorTools
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
         }
 
+        /// <summary>Opens the sandbox scene and enters Play mode (use with Unity Remote 5 connected).</summary>
+        [MenuItem("ForgeBorn/Play With Remote")]
+        public static void PlayWithRemote()
+        {
+            EditorSceneManager.OpenScene(ScenePath);
+            EditorApplication.isPlaying = true;
+        }
+
         public static void BuildAndroidDebug()
         {
             Run();
