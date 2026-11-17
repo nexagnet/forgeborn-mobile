@@ -44,7 +44,9 @@ gate theo từng milestone; không báo iOS xong khi chưa chạy trên iPhone; 
 - [x] Unity Hub
 - [ ] Unity 6.3 LTS + Android Build Support (cài thủ công hoặc qua Unity CLI)
 - [x] Repo git, `.gitignore`
-- [ ] Repo GitHub `nexagnet/forgeborn-mobile`
+- [x] Repo GitHub `nexagnet/forgeborn-mobile` (public)
+
+Giai đoạn 1 (Domain kernel + 21 test) đã xong, xem `docs/IMPLEMENTATION_STATUS.md`.
 
 ### Giai đoạn 1 — Domain kernel (không cần Unity)
 | Bước | Nội dung | Kiểm chứng |
