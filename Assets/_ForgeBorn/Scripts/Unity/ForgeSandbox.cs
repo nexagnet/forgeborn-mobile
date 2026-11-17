@@ -191,6 +191,7 @@ namespace ForgeBorn.UnityLayer
             light.type = LightType.Directional;
             light.intensity = 1.4f;
             lightGo.transform.rotation = Quaternion.Euler(35f, -25f, 0f);
+            SandboxEnvironment.Apply(_cam, _profile.Tier);
 
             var root = new GameObject("Blade");
             _bladeRoot = root.transform;
@@ -207,6 +208,7 @@ namespace ForgeBorn.UnityLayer
             {
                 var m = new Material(sh);
                 m.SetFloat("_Brush", _profile.BrushedSteel ? 0.6f : 0f);
+                if (RenderSettings.customReflectionTexture != null) m.SetTexture("_EnvCube", RenderSettings.customReflectionTexture);
                 return m;
             }
             var legacy = Resources.Load<Material>("BladeMat");

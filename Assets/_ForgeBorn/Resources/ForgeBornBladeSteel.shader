@@ -7,6 +7,7 @@ Shader "ForgeBorn/BladeSteel"
         _BaseColor ("Steel colour", Color) = (0.66, 0.68, 0.72, 1)
         _Smoothness ("Smoothness", Range(0, 1)) = 0.6
         _Brush ("Brushed streaks (0 = off)", Range(0, 1)) = 0.6
+        [NoScaleOffset] _EnvCube ("Environment cube", Cube) = "grey" {}
     }
 
     SubShader
@@ -23,6 +24,9 @@ Shader "ForgeBorn/BladeSteel"
             #pragma fragment Frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            TEXTURECUBE(_EnvCube);
+            SAMPLER(sampler_EnvCube);
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _BaseColor;
@@ -66,7 +70,7 @@ Shader "ForgeBorn/BladeSteel"
             {
                 float3 n = normalize(i.normalWS);
                 float3 v = unity_OrthoParams.w > 0.5
-                    ? normalize(-UNITY_MATRIX_V[2].xyz)
+                    ? normalize(UNITY_MATRIX_V[2].xyz)
                     : normalize(GetCameraPositionWS() - i.positionWS);
 
                 // Brushed streaks run along the blade length (object X): vary with the cross-section position.
@@ -83,13 +87,19 @@ Shader "ForgeBorn/BladeSteel"
                 half shin = exp2(10.0h * _Smoothness + 1.0h);
                 half spec = pow(ndh, shin) * (shin + 8.0h) * 0.04h * (1.0h + (streak - 0.5h) * _Brush);
 
+                // Metal: albedo is the reflectance at normal incidence; reflections come from the environment cubemap.
                 float3 r = reflect(-v, n);
-                half env = saturate(r.y * 0.5h + 0.5h);
+                half rough = saturate((1.0h - _Smoothness) + (streak - 0.5h) * 0.12h * _Brush);
+                half3 envCol = SAMPLE_TEXTURECUBE_LOD(_EnvCube, sampler_EnvCube, r, rough * 5.0h).rgb;
+                half ndv = saturate(dot(n, v));
+                half fres = pow(1.0h - ndv, 5.0h);
+                half3 f0 = albedo * 0.95h;
+                half3 fr = f0 + (1.0h - f0) * fres * 0.6h;
 
-                half3 col = albedo * l.color * ndl * 0.55h;
-                col += albedo * SampleSH(n) * 0.6h;
+                half3 col = albedo * l.color * ndl * 0.25h;
+                col += albedo * SampleSH(n) * 0.35h;
                 col += albedo * l.color * spec;
-                col += albedo * env * 0.22h;
+                col += envCol * fr * 0.9h;
 
                 // Cracks: dark bands across the blade where damage is high.
                 half crack = i.color.a * step(0.55h, frac(i.positionOS.x * 70.0));
