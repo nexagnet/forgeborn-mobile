@@ -4,7 +4,8 @@ Only facts observed on this project are marked OK. Evidence labels are never mer
 
 | Evidence | Status | Detail |
 |---|---|---|
-| Domain test (`dotnet test`, headless) | OK | 21/21 on .NET 8, Windows 11 |
+| Domain test (`dotnet test`, headless) | OK | 54/54 on .NET 8, Windows 11 (frame/twist, hammer, thermal, evaluation goldens, schema 2). Not yet independently reviewed |
+| Domain microbenchmark (PC estimate) | Measured on PC only | See `docs/BENCHMARKS.md`; default detail grind frame ~2.6 ms on i7-10610U. Not device performance |
 | Unity EditMode tests | OK | 2/2 (mesh volume vs Domain, winding, grinding updates mesh) on Unity 6000.3.28f1 |
 | Editor (Windows, Intel UHD) | Setup compiles; not visually reviewed | No screenshots recorded yet |
 | Unity Remote 5 (iPhone) | Image streaming OK (user-reported); touch/grinding **not yet confirmed** | Working setup: build target iOS, iOS module loaded, Store iTunes, `ForgeBorn > Set Remote iPhone` (device is not listed in the dropdown). Shows PC performance, not iPhone |

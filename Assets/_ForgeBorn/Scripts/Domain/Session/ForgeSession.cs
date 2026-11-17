@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ForgeBorn.Domain.Commands;
+using ForgeBorn.Domain.Evaluation;
 using ForgeBorn.Domain.Geometry;
 using ForgeBorn.Domain.Material;
 
@@ -48,6 +49,8 @@ namespace ForgeBorn.Domain.Session
         public long Version { get; private set; }
         public double CumulativeRemovedMassKg { get; private set; }
         public GrindSolverSettings Settings { get; } = new GrindSolverSettings();
+        public HammerSettings Hammer { get; } = new HammerSettings();
+        public ThermalSettings Thermal { get; } = new ThermalSettings();
         public IReadOnlyList<AuditEntry> AuditLog => _audit;
 
         public double VolumeM3 => Profile.VolumeM3();
@@ -129,6 +132,100 @@ namespace ForgeBorn.Domain.Session
                 });
             }
             return r;
+        }
+
+        /// <summary>One forging blow. Transactional: rolls back on any failure or if volume is not conserved.</summary>
+        public HammerResult ApplyHammer(HammerStrikeCommand cmd)
+        {
+            if (cmd != null && cmd.Id != 0 && _seenCommandIds.Contains(cmd.Id))
+                return HammerResult.Rejected("duplicate command id");
+
+            _backup.CopyFrom(Profile);
+            HammerResult r;
+            try
+            {
+                r = HammerSolver.Apply(Profile, cmd, Material, Hammer);
+            }
+            catch (Exception)
+            {
+                Profile.CopyFrom(_backup);
+                throw;
+            }
+
+            if (!r.Accepted)
+            {
+                Profile.CopyFrom(_backup);
+                return r;
+            }
+
+            if (r.StationsTouched > 0)
+            {
+                string reason;
+                if (!Profile.Validate(r.FirstStation - 1, r.LastStation + 1, out reason))
+                {
+                    Profile.CopyFrom(_backup);
+                    return HammerResult.Rejected("geometry invalid after hammer: " + reason);
+                }
+                double drift = Math.Abs(r.VolumeAfterM3 - r.VolumeBeforeM3) / Math.Max(r.VolumeBeforeM3, 1e-300);
+                if (drift > Hammer.MaxVolumeDriftRel)
+                {
+                    Profile.CopyFrom(_backup);
+                    return HammerResult.Rejected("volume not conserved by hammer blow");
+                }
+            }
+
+            if (cmd.Id != 0) _seenCommandIds.Add(cmd.Id);
+            if (r.StationsTouched > 0)
+            {
+                Version++;
+                _audit.Add(new AuditEntry { Version = Version, CommandId = cmd.Id, Kind = "hammer" });
+            }
+            return r;
+        }
+
+        /// <summary>Heat, cool, quench or temper the whole blade. Transactional; geometry is untouched.</summary>
+        public ThermalResult ApplyThermal(ThermalCommand cmd)
+        {
+            if (cmd != null && cmd.Id != 0 && _seenCommandIds.Contains(cmd.Id))
+                return ThermalResult.Rejected("duplicate command id");
+
+            _backup.CopyFrom(Profile);
+            ThermalResult r;
+            try
+            {
+                r = ThermalSolver.Apply(Profile, cmd, Material, Thermal);
+            }
+            catch (Exception)
+            {
+                Profile.CopyFrom(_backup);
+                throw;
+            }
+
+            if (!r.Accepted)
+            {
+                Profile.CopyFrom(_backup);
+                return r;
+            }
+
+            string reason;
+            if (!Profile.Validate(out reason))
+            {
+                Profile.CopyFrom(_backup);
+                return ThermalResult.Rejected("state invalid after thermal step: " + reason);
+            }
+
+            if (cmd.Id != 0) _seenCommandIds.Add(cmd.Id);
+            if (cmd.DurationS > 0.0)
+            {
+                Version++;
+                _audit.Add(new AuditEntry { Version = Version, CommandId = cmd.Id, Kind = "thermal:" + cmd.Environment.Id });
+            }
+            return r;
+        }
+
+        public BladeReport Evaluate(BladeSpec spec)
+        {
+            return BladeEvaluator.Evaluate(Profile, Material, spec);
         }
     }
 }

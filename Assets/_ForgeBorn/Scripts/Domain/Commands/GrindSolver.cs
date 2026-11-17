@@ -34,6 +34,8 @@ namespace ForgeBorn.Domain.Commands
             int first = int.MaxValue, last = -1;
             int total = 0, contact = 0;
             double rpmFactor = cmd.WheelRpm / cmd.Wheel.RatedRpm;
+            // Grinding only removes metal, so the bounds at stroke start stay a valid superset for every substep.
+            BladeBounds bounds = BladeRaycaster.ComputeBounds(profile);
 
             var samples = cmd.Samples;
             // Dwell at the first sample.
@@ -44,7 +46,7 @@ namespace ForgeBorn.Domain.Commands
                 for (int k = 0; k < n && a.DeltaSeconds > 0.0; k++)
                 {
                     if (++total > st.MaxSubsteps) return GrindResult.Rejected("too many substeps");
-                    Substep(profile, a.RayOrigin, a.RayDirection, a.PressureN, dt, cmd.Wheel, material, st, rpmFactor,
+                    Substep(profile, bounds, a.RayOrigin, a.RayDirection, a.PressureN, dt, cmd.Wheel, material, st, rpmFactor,
                         ref contact, ref first, ref last);
                 }
             }
@@ -62,7 +64,7 @@ namespace ForgeBorn.Domain.Commands
                     Vec3d o = Vec3d.Lerp(a.RayOrigin, b.RayOrigin, u);
                     Vec3d d = Vec3d.Lerp(a.RayDirection, b.RayDirection, u);
                     double pr = a.PressureN + (b.PressureN - a.PressureN) * u;
-                    Substep(profile, o, d, pr, dt, cmd.Wheel, material, st, rpmFactor, ref contact, ref first, ref last);
+                    Substep(profile, bounds, o, d, pr, dt, cmd.Wheel, material, st, rpmFactor, ref contact, ref first, ref last);
                 }
             }
 
@@ -99,12 +101,12 @@ namespace ForgeBorn.Domain.Commands
             return null;
         }
 
-        private static void Substep(BladeProfile p, Vec3d origin, Vec3d dir, double pressure, double dt, AbrasiveWheel w,
+        private static void Substep(BladeProfile p, BladeBounds bounds, Vec3d origin, Vec3d dir, double pressure, double dt, AbrasiveWheel w,
             MaterialData m, GrindSolverSettings st, double rpmFactor, ref int contact, ref int first, ref int last)
         {
             if (pressure <= 0.0 || dt <= 0.0) return; // tool lifted / not pressing: nothing happens
             BladeHit hit;
-            if (!BladeRaycaster.Raycast(p, origin, dir, st.RayLengthM, out hit)) return; // no contact: nothing happens
+            if (!BladeRaycaster.Raycast(p, origin, dir, st.RayLengthM, bounds, out hit)) return; // no contact: nothing happens
             contact++;
             double depth = w.RemovalCoeffMPerNs * pressure * dt * rpmFactor / m.GrindResistance;
             if (depth <= 0.0) return;
@@ -114,16 +116,23 @@ namespace ForgeBorn.Domain.Commands
         private static void ApplyKernel(BladeProfile p, BladeHit hit, AbrasiveWheel w, double depth, double minThickness,
             ref int first, ref int last)
         {
-            Vec2d n = hit.NormalYZ;
-            Vec2d c = hit.PointYZ;
-            Vec2d tdir = new Vec2d(-n.Y, n.X);
             double lx = w.FootprintHalfLengthM, rc = w.FootprintHalfWidthM;
             int pc = p.PerimeterCount;
+
+            // Scratch buffers allocated once per call (not per station): stack use stays O(P) regardless of footprint size.
+            Span<double> shifts = stackalloc double[pc];
+            Span<double> orig = stackalloc double[pc * 2];
+            Span<bool> moved = stackalloc bool[pc];
 
             for (int s = 0; s < p.StationCount; s++)
             {
                 double dx = Math.Abs(p.X[s] - hit.X);
                 if (dx >= lx || p.Severed[s]) continue;
+
+                // Contact point and normal expressed in this station's local section frame.
+                Vec2d n = BladeProfile.Rotate(hit.NormalYZ, -p.Twist[s]);
+                Vec2d c = p.ToLocal(s, hit.PointYZ);
+                Vec2d tdir = new Vec2d(-n.Y, n.X);
 
                 double wx = Math.Cos(Math.PI * 0.5 * dx / lx);
                 wx *= wx;
@@ -154,9 +163,8 @@ namespace ForgeBorn.Domain.Commands
                 }
 
                 // Per-vertex inward shifts; originals kept so the move can be scaled back or undone.
-                Span<double> shifts = stackalloc double[pc];
-                Span<double> orig = stackalloc double[pc * 2];
                 bool any = false;
+                moved.Clear();
                 for (int j = 0; j < pc; j++)
                 {
                     Vec2d pt = p.Point(s, j);
@@ -173,6 +181,7 @@ namespace ForgeBorn.Domain.Commands
                     double shift = wr * (sj - planeS);
                     if (shift <= 0.0) continue;
                     shifts[j] = shift;
+                    moved[j] = true;
                     any = true;
                 }
                 if (!any) continue;
@@ -185,7 +194,7 @@ namespace ForgeBorn.Domain.Commands
                 {
                     for (int j = 0; j < pc; j++)
                         p.SetPoint(s, j, new Vec2d(orig[j * 2], orig[j * 2 + 1]) - n * (shifts[j] * scale));
-                    if (!p.StationSelfIntersects(s)) applied = true;
+                    if (!p.StationSelfIntersectsTouching(s, moved)) applied = true;
                     else scale *= 0.5;
                 }
                 if (applied) Touch(s, ref first, ref last);

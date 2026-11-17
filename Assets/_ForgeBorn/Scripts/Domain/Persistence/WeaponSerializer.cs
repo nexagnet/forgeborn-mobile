@@ -9,13 +9,15 @@ using ForgeBorn.Domain.Session;
 namespace ForgeBorn.Domain.Persistence
 {
     /// <summary>
-    /// Binary weapon snapshot, schema 1: "FBWS", int schema, int idLen, id utf8, int S, int P, long version,
-    /// double cumulativeRemovedKg, double[S] X, double[S*P*2] ring, byte[S] severed, then SHA-256(all preceding bytes).
+    /// Binary weapon snapshot: "FBWS", int schema, int idLen, id utf8, int S, int P, long version,
+    /// double cumulativeRemovedKg, double[S] X, double[S*P*2] ring, byte[S] severed,
+    /// schema 2 adds double[S] each of centerY, centerZ, twist, tempK, austenite, martensite, temperP, damage,
+    /// then SHA-256(all preceding bytes). Schema 1 files still load (straight, ambient, annealed defaults).
     /// Untrusted input is size-bounded and checksum-verified before parsing.
     /// </summary>
     public static class WeaponSerializer
     {
-        public const int SchemaVersion = 1;
+        public const int SchemaVersion = 2;
         public const int MaxFileBytes = 64 * 1024 * 1024;
         public const int MaxStations = 4096;
         public const int MaxPerimeter = 256;
@@ -41,6 +43,14 @@ namespace ForgeBorn.Domain.Persistence
                     for (int i = 0; i < p.X.Length; i++) w.Write(p.X[i]);
                     for (int i = 0; i < p.Ring.Length; i++) w.Write(p.Ring[i]);
                     for (int i = 0; i < p.Severed.Length; i++) w.Write((byte)(p.Severed[i] ? 1 : 0));
+                    WriteArray(w, p.CenterY);
+                    WriteArray(w, p.CenterZ);
+                    WriteArray(w, p.Twist);
+                    WriteArray(w, p.TempK);
+                    WriteArray(w, p.Austenite);
+                    WriteArray(w, p.Martensite);
+                    WriteArray(w, p.TemperP);
+                    WriteArray(w, p.Damage);
                 }
                 byte[] body = ms.ToArray();
                 byte[] hash;
@@ -50,6 +60,18 @@ namespace ForgeBorn.Domain.Persistence
                 Buffer.BlockCopy(hash, 0, all, body.Length, HashBytes);
                 return all;
             }
+        }
+
+        private static void WriteArray(BinaryWriter w, double[] a)
+        {
+            for (int i = 0; i < a.Length; i++) w.Write(a[i]);
+        }
+
+        private static double[] ReadArray(BinaryReader r, int n)
+        {
+            var a = new double[n];
+            for (int i = 0; i < n; i++) a[i] = r.ReadDouble();
+            return a;
         }
 
         public static bool TryFromBytes(byte[] data, out WeaponSnapshot snap, out string error)
@@ -74,7 +96,7 @@ namespace ForgeBorn.Domain.Persistence
                     for (int i = 0; i < 4; i++)
                         if (magic.Length != 4 || magic[i] != Magic[i]) { error = "bad magic"; return false; }
                     int schema = r.ReadInt32();
-                    if (schema != SchemaVersion) { error = "unsupported schema " + schema; return false; }
+                    if (schema < 1 || schema > SchemaVersion) { error = "unsupported schema " + schema; return false; }
                     int idLen = r.ReadInt32();
                     if (idLen < 1 || idLen > 64) { error = "bad material id length"; return false; }
                     string materialId = Encoding.UTF8.GetString(r.ReadBytes(idLen));
@@ -85,6 +107,7 @@ namespace ForgeBorn.Domain.Persistence
                     double removed = r.ReadDouble();
 
                     long expectedLen = 4 + 4 + 4 + idLen + 4 + 4 + 8 + 8 + (long)s * 8 + (long)s * pc * 16 + s;
+                    if (schema >= 2) expectedLen += (long)s * 8 * 8; // eight per-station double arrays
                     if (expectedLen != bodyLen) { error = "length mismatch"; return false; }
 
                     var x = new double[s];
@@ -94,8 +117,22 @@ namespace ForgeBorn.Domain.Persistence
                     for (int i = 0; i < ring.Length; i++) ring[i] = r.ReadDouble();
                     for (int i = 0; i < sev.Length; i++) sev[i] = r.ReadByte() != 0;
 
+                    // Schema 1 has no section frames or metallurgical state: defaults (straight, untwisted, ambient, annealed).
+                    double[] cy = null, cz = null, tw = null, tk = null, au = null, ma = null, tp = null, dm = null;
+                    if (schema >= 2)
+                    {
+                        cy = ReadArray(r, s);
+                        cz = ReadArray(r, s);
+                        tw = ReadArray(r, s);
+                        tk = ReadArray(r, s);
+                        au = ReadArray(r, s);
+                        ma = ReadArray(r, s);
+                        tp = ReadArray(r, s);
+                        dm = ReadArray(r, s);
+                    }
+
                     if (MaterialData.ById(materialId) == null) { error = "unknown material " + materialId; return false; }
-                    var profile = new BladeProfile(x, ring, sev, pc);
+                    var profile = new BladeProfile(x, ring, sev, pc, cy, cz, tw, tk, au, ma, tp, dm);
                     string reason;
                     if (!profile.Validate(out reason)) { error = "invalid geometry: " + reason; return false; }
                     snap = new WeaponSnapshot(profile, materialId, version, removed);

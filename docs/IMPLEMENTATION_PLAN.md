@@ -54,6 +54,11 @@ Nguồn gốc: `TECHNICAL_DESIGN.md` (thiết kế V3) và `CLAUDE_CODE_START.md
 
 **Cổng B:** `dotnet test` xanh toàn bộ; không có đường code làm thể tích tăng ngoài búa có kiểm soát.
 
+**Trạng thái Giai đoạn B (2026-11-18):** B1–B5 đã code, `dotnet test` 54/54 xanh, benchmark ở `docs/BENCHMARKS.md` (ước lượng PC).
+Chưa commit; chờ review độc lập (`/code-review`). Ghi chú mô hình: búa bảo toàn thể tích theo từng trạm (nở ngang, chưa kéo dài theo X);
+lưỡi cong/xoắn không đổi thể tích (mặt cắt luôn vuông góc X); tôi dùng nhiệt dung gộp theo trạm + dẫn nhiệt dọc, chưa mô hình cong vênh khi tôi.
+Schema lưu là 2 (đọc được schema 1).
+
 ### Giai đoạn C — Chất lượng hình ảnh và cảm giác (Editor + Remote)
 - Mesh: tách cạnh sắc (vertex đôi theo góc), pháp tuyến đúng cho vát; chỉ dựng lại đoạn bẩn bằng `Mesh.AllocateWritableMeshData` + Burst/Jobs nếu đo thấy cần.
 - Shader URP thép: vệt mài theo hướng (anisotropic), nhiệt màu (temper colors) từ trường nhiệt, tia lửa (VFX nhẹ, giới hạn hạt theo profile).
