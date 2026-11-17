@@ -63,7 +63,7 @@ Schema lưu là 2 (đọc được schema 1).
 Đã có: mesh theo centerline/xoắn + màu nhiệt (phát sáng HDR), màu oxit khi ram, vết nứt; shader thép `ForgeBorn/BladeSteel` (vệt mài, không bóng đổ);
 tia lửa (giới hạn hạt theo profile); âm thanh thủ tục (mài/búa); haptics qua `IHapticsService` (chỉ `Handheld.Vibrate`, chưa kiểm chứng, không phải CoreHaptics);
 UI: GRIND/HAMMER/INSPECT, môi trường Air/Furnace/Water/Oil/Oven, tốc độ thời gian x1..x600, Zoom, báo cáo lưỡi, bar vát sẵn.
-`PlatformProfile` (iOS/Android/Editor-giả-lập) là cấu hình mặc định, **chưa đo trên máy**. Chưa làm: gom lệnh grind (audit tăng theo thời gian), thermal chạy nền, shader shadow.
+`PlatformProfile` (iOS/Android/Editor-giả-lập) là cấu hình mặc định, **chưa đo trên máy**. Đã khắc phục sau đó: audit/Id lệnh có giới hạn, thermal rẻ hơn (500 bước/lệnh ngoài tôi), shader có pass bóng/độ sâu, đường cảm ứng→hình học kiểm chứng bằng điểm chạm giả, test âm thanh. Còn thiếu: cảm ứng thật trên iPhone, haptics thật, thermal chạy nền (chỉ làm nếu đo thấy cần).
 
 ### Giai đoạn C — Chất lượng hình ảnh và cảm giác (Editor + Remote)
 - Mesh: tách cạnh sắc (vertex đôi theo góc), pháp tuyến đúng cho vát; chỉ dựng lại đoạn bẩn bằng `Mesh.AllocateWritableMeshData` + Burst/Jobs nếu đo thấy cần.

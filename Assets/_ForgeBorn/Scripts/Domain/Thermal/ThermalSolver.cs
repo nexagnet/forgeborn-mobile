@@ -39,7 +39,7 @@ namespace ForgeBorn.Domain.Commands
             if (cmd.DurationS > 0.0)
             {
                 double dtStab = 0.4 * rhoC * minDx2 / m.ConductivityWPerMK;
-                double dtWant = Math.Min(st.MaxDtS, Math.Max(st.MinDtS, cmd.DurationS / 2000.0));
+                double dtWant = Math.Min(st.MaxDtS, Math.Max(st.MinDtS, cmd.DurationS / st.StepsPerCommand));
                 double dt = Math.Min(dtWant, dtStab);
                 int n = (int)Math.Ceiling(cmd.DurationS / dt);
                 if (n < 1) n = 1;

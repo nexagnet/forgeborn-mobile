@@ -81,6 +81,12 @@ namespace ForgeBorn.UnityLayer
 
         private void OnAudioFilterRead(float[] data, int channels)
         {
+            Render(data, channels);
+        }
+
+        /// <summary>Fills an interleaved buffer (also called directly by tests, no audio device needed).</summary>
+        public void Render(float[] data, int channels)
+        {
             float g = _grindGain, tone = _grindTone;
             float env = _impactEnv, freq = _impactFreq;
             double step = 2.0 * System.Math.PI * freq / _sampleRate;
@@ -135,6 +141,12 @@ namespace ForgeBorn.UnityLayer
             if (material != null) rend.sharedMaterial = material;
             rend.renderMode = ParticleSystemRenderMode.Billboard;
             _ps.Play();
+        }
+
+        /// <summary>Advances the particle simulation by hand (headless capture runs outside Play mode).</summary>
+        public void SimulateForCapture(float seconds)
+        {
+            if (_ps != null) _ps.Simulate(seconds, true, false, true);
         }
 
         /// <summary>Emit count sparks at a world position flying roughly along dir.</summary>

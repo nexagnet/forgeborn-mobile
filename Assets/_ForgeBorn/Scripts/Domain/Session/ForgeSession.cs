@@ -44,6 +44,34 @@ namespace ForgeBorn.Domain.Session
         private readonly HashSet<long> _seenCommandIds = new HashSet<long>();
         private readonly List<AuditEntry> _audit = new List<AuditEntry>();
 
+        /// <summary>Duplicate-id protection covers the most recent commands only (bounded memory over long sessions).</summary>
+        public const int MaxTrackedCommandIds = 4096;
+        /// <summary>Audit log keeps the most recent entries; older ones are counted in <see cref="AuditDropped"/>.</summary>
+        public const int MaxAuditEntries = 2048;
+
+        private readonly Queue<long> _seenOrder = new Queue<long>();
+
+        /// <summary>Number of audit entries discarded to keep the log bounded.</summary>
+        public long AuditDropped { get; private set; }
+
+        private void Remember(long id)
+        {
+            if (!_seenCommandIds.Add(id)) return;
+            _seenOrder.Enqueue(id);
+            while (_seenOrder.Count > MaxTrackedCommandIds) _seenCommandIds.Remove(_seenOrder.Dequeue());
+        }
+
+        private void Log(AuditEntry entry)
+        {
+            _audit.Add(entry);
+            if (_audit.Count > MaxAuditEntries + MaxAuditEntries / 2)
+            {
+                int drop = _audit.Count - MaxAuditEntries;
+                _audit.RemoveRange(0, drop);
+                AuditDropped += drop;
+            }
+        }
+
         public BladeProfile Profile { get; }
         public MaterialData Material { get; }
         public long Version { get; private set; }
@@ -117,12 +145,12 @@ namespace ForgeBorn.Domain.Session
                 return GrindResult.Rejected("volume increased; grinding can never add metal");
             }
 
-            if (cmd.Id != 0) _seenCommandIds.Add(cmd.Id);
+            if (cmd.Id != 0) Remember(cmd.Id);
             if (r.RemovedVolumeM3 > 0.0)
             {
                 Version++;
                 CumulativeRemovedMassKg += r.RemovedMassKg;
-                _audit.Add(new AuditEntry
+                Log(new AuditEntry
                 {
                     Version = Version,
                     CommandId = cmd.Id,
@@ -174,11 +202,11 @@ namespace ForgeBorn.Domain.Session
                 }
             }
 
-            if (cmd.Id != 0) _seenCommandIds.Add(cmd.Id);
+            if (cmd.Id != 0) Remember(cmd.Id);
             if (r.StationsTouched > 0)
             {
                 Version++;
-                _audit.Add(new AuditEntry { Version = Version, CommandId = cmd.Id, Kind = "hammer" });
+                Log(new AuditEntry { Version = Version, CommandId = cmd.Id, Kind = "hammer" });
             }
             return r;
         }
@@ -214,11 +242,11 @@ namespace ForgeBorn.Domain.Session
                 return ThermalResult.Rejected("state invalid after thermal step: " + reason);
             }
 
-            if (cmd.Id != 0) _seenCommandIds.Add(cmd.Id);
+            if (cmd.Id != 0) Remember(cmd.Id);
             if (cmd.DurationS > 0.0)
             {
                 Version++;
-                _audit.Add(new AuditEntry { Version = Version, CommandId = cmd.Id, Kind = "thermal:" + cmd.Environment.Id });
+                Log(new AuditEntry { Version = Version, CommandId = cmd.Id, Kind = "thermal:" + cmd.Environment.Id });
             }
             return r;
         }

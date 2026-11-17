@@ -78,6 +78,8 @@ namespace ForgeBorn.Domain.Commands
         public double MaxDurationS = 14400.0;
         public double MinDtS = 0.005;
         public double MaxDtS = 0.25;
+        /// <summary>Target number of substeps per command (dt = duration / this, clamped to [MinDtS, MaxDtS]). Lower = cheaper, coarser.</summary>
+        public double StepsPerCommand = 2000.0;
         public int MaxSubsteps = 200000;
         /// <summary>Tempering accumulation interval (s); the Hollomon-Jaffe update is lumped to keep it cheap.</summary>
         public double TemperIntervalS = 0.5;

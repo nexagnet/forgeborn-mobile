@@ -10,10 +10,11 @@ Ghi lại các lỗi thật đã gặp khi dựng dự án, kèm cách xử lý.
 | Unity mở bằng quyền admin báo "Administrator Privileges Detected" | Shell của Claude đang elevated nên Unity kế thừa. Bấm "Restart as Standard User"; mở Unity từ shell thường. |
 | Build APK Android | Dừng ở ~45% (IL2CPP), không có APK. Hạ ưu tiên vì không có máy Android. |
 | iOS native / hiệu năng iPhone | Chưa kiểm chứng; cần Mac + Xcode + Apple Developer. |
-| Giao diện Phase C chỉ xem qua ảnh render headless | `docs/shots/` (tạo bằng `ForgeBornCapture`, lệnh trong file nguồn). Chưa xem tia lửa, âm thanh, cảm ứng; Editor có cửa sổ trắng khi mở lại bằng layout cũ (Window > Layouts > Default). Lưỡi hiển thị rất mảnh (50 mm trên 800 mm): dùng nút Zoom. |
+| Giao diện Phase C chỉ xem qua ảnh render headless | `docs/shots/` (tạo bằng `ForgeBornCapture`, lệnh trong file nguồn). Tia lửa đã xem (ảnh 07); đường "điểm chạm trên màn hình -> ray camera -> lệnh Domain" đã chạy thật bằng điểm chạm giả (mài 44.5 g, búa trúng). Chưa kiểm chứng: cảm ứng thật trên iPhone, âm thanh nghe thực tế, haptics. Layout Editor cũ đã đổi tên `.bak` (UserSettings/Layouts) để tránh cửa sổ trắng. Lưỡi hiển thị rất mảnh (50 mm trên 800 mm): dùng nút Zoom. |
 | Unity chạy quyền admin treo/đóng băng khi tôi điều khiển | Editor admin hiện hộp thoại "Administrator Privileges" mỗi lần focus, chặn biên dịch; bấm Restart qua Hub không chạy được (project không có trong Hub). Mở Editor bằng Explorer/Hub (không từ shell elevated). Chạy test headless: `Unity.exe -batchmode -nographics -runTests -testPlatform EditMode` (cần đóng Editor). |
-| Thermal tick tốn CPU ở x600 | Mỗi lệnh 150 s mô phỏng ~12 ms trên PC (ước lượng), có thể giật khung trên điện thoại. Đưa ra luồng nền ở Giai đoạn D nếu đo thấy cần. |
-| Audit/`_seenCommandIds` tăng theo thời gian chơi | Grind/hammer gửi lệnh mỗi khung; thermal dùng Id 0 nên không vào danh sách trùng nhưng vẫn ghi audit. Cần gom lệnh. |
+| Thermal tick ở x600 | Đã giảm: `StepsPerCommand` 500 cho Air/Oven/Furnace (2000 chỉ cho tôi nước/dầu), test cùng độ cứng trong ±2 HRC. Chi phí thật trên điện thoại vẫn chưa đo. |
+| Audit và danh sách Id lệnh | Đã xử lý: giới hạn 4096 Id gần nhất và ~2048 mục audit (có đếm `AuditDropped`), có test phiên dài. Id cũ hơn cửa sổ không còn bị chặn trùng (chấp nhận, ghi trong mã). |
+| Shader thiếu pass bóng/độ sâu | Đã thêm ShadowCaster và DepthOnly tự chứa; biên dịch sạch. Chưa bật bóng trong cảnh (đèn không đổ bóng). |
 
 ## Môi trường Windows / Unity
 | Lỗi | Nguyên nhân | Xử lý |

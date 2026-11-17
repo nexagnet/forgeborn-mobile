@@ -438,6 +438,62 @@ namespace ForgeBorn.Domain.Tests
         }
     }
 
+    public class LongSessionTests
+    {
+        private static ForgeSession Small()
+        {
+            return new ForgeSession(BladeFactory.CreateRectBlank(0.7, 0.05, 0.006, 33, 16), MaterialData.SteelBasicV1);
+        }
+
+        [Fact]
+        public void AuditLogAndSeenIds_StayBounded_OverVeryLongSessions()
+        {
+            var s = Small();
+            int total = ForgeSession.MaxTrackedCommandIds + 3000;
+            long firstId = 0, lastId = 0;
+            for (int i = 0; i < total; i++)
+            {
+                var cmd = new ThermalCommand(H.NextId(), ThermalEnvironment.Furnace(1400.0), 0.01);
+                if (i == 0) firstId = cmd.Id;
+                lastId = cmd.Id;
+                Assert.True(s.ApplyThermal(cmd).Accepted);
+            }
+            Assert.True(s.AuditLog.Count <= ForgeSession.MaxAuditEntries + ForgeSession.MaxAuditEntries / 2);
+            Assert.True(s.AuditDropped > 0);
+            Assert.Equal((long)total, s.Version);
+            Assert.Equal(total, s.AuditLog.Count + s.AuditDropped);
+            Assert.Equal(lastId, s.AuditLog[s.AuditLog.Count - 1].CommandId); // newest entry kept
+
+            // Recent ids are still protected; ids older than the window are forgotten (documented bound).
+            Assert.False(s.ApplyThermal(new ThermalCommand(lastId, ThermalEnvironment.Air(), 0.01)).Accepted);
+            Assert.True(s.ApplyThermal(new ThermalCommand(firstId, ThermalEnvironment.Air(), 0.01)).Accepted);
+        }
+
+        [Fact]
+        public void CoarserThermalSteps_AreCheaper_AndGiveTheSameHeatTreatment()
+        {
+            ForgeSession fine = H.Session();
+            ForgeSession coarse = H.Session();
+            coarse.Thermal.StepsPerCommand = 500.0;
+
+            foreach (var s in new[] { fine, coarse })
+            {
+                s.ApplyThermal(HB.Therm(ThermalEnvironment.Furnace(1400.0), 90.0));
+                s.ApplyThermal(HB.Therm(ThermalEnvironment.Water(), 30.0));
+                s.ApplyThermal(HB.Therm(ThermalEnvironment.Oven(523.15), 3600.0));
+            }
+            double hf = fine.Material.HardnessHrc(HB.MidIndexValue(fine.Profile, fine.Profile.Martensite), HB.MidIndexValue(fine.Profile, fine.Profile.TemperP));
+            double hc = coarse.Material.HardnessHrc(HB.MidIndexValue(coarse.Profile, coarse.Profile.Martensite), HB.MidIndexValue(coarse.Profile, coarse.Profile.TemperP));
+            Assert.InRange(Math.Abs(hf - hc), 0.0, 2.0);
+
+            var rf = H.Session().ApplyThermal(HB.Therm(ThermalEnvironment.Oven(523.15), 3600.0));
+            var s2 = H.Session();
+            s2.Thermal.StepsPerCommand = 500.0;
+            var rc = s2.ApplyThermal(HB.Therm(ThermalEnvironment.Oven(523.15), 3600.0));
+            Assert.True(rc.Substeps <= rf.Substeps);
+        }
+    }
+
     public class EvaluationTests
     {
         [Fact]

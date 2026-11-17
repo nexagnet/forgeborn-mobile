@@ -94,6 +94,33 @@ namespace ForgeBorn.UnityLayer
 
         public ForgeSession Session => _session;
 
+        public HammerResult LastHammer { get; private set; }
+
+        /// <summary>
+        /// Drives the real input path with synthetic screen points (camera ray -> blade space -> Domain command), so the
+        /// touch-to-geometry pipeline can be verified without a device. Returns the mass removed in kg.
+        /// </summary>
+        public double CaptureGrindDrag(Vector2 from, Vector2 to, int steps, float frameDt)
+        {
+            double before = _session.MassKg;
+            _hasPrev = false;
+            _hasScreenPrev = false;
+            for (int i = 0; i <= steps; i++) GrindStep(Vector2.Lerp(from, to, i / (float)System.Math.Max(1, steps)), frameDt);
+            _hasPrev = false;
+            _hasScreenPrev = false;
+            return before - _session.MassKg;
+        }
+
+        public void CaptureHammerScreen(Vector2 pos)
+        {
+            _lastStrikeTime = -10f;
+            HammerStrike(pos);
+        }
+
+        public void CaptureSetTool(ToolMode tool) { _tool = tool; }
+
+        public void CaptureSimulateSparks(float seconds) { _sparks.SimulateForCapture(seconds); }
+
         /// <summary>Runs the thermal model for simSeconds in the given environment and refreshes visuals (no real-time wait).</summary>
         public void CaptureThermal(ForgeEnv env, double simSeconds)
         {
@@ -254,7 +281,7 @@ namespace ForgeBorn.UnityLayer
             }
             else if (_tool == ToolMode.Grind)
             {
-                GrindStep(pos);
+                GrindStep(pos, Time.deltaTime);
             }
             else if (_tool == ToolMode.Hammer)
             {
@@ -312,15 +339,15 @@ namespace ForgeBorn.UnityLayer
 
         // ---------------------------------------------------------------- grinding
 
-        private void GrindStep(Vector2 screenPos)
+        private void GrindStep(Vector2 screenPos, float frameDt)
         {
             Vector3 o, d;
             ScreenToBladeRay(screenPos, out o, out d);
             double pq = SandboxRules.QuantizePressure(_pressureN);
-            double dt = System.Math.Min(Time.deltaTime, 0.05);
+            double dt = System.Math.Min(frameDt, 0.05);
             var cur = new GrindSample(new Vec3d(o.x, o.y, o.z), new Vec3d(d.x, d.y, d.z), pq, dt);
 
-            float speed = _hasScreenPrev ? (screenPos - _lastScreenPos).magnitude / Mathf.Max(Time.deltaTime, 1e-3f) / Screen.height : 0f;
+            float speed = _hasScreenPrev ? (screenPos - _lastScreenPos).magnitude / Mathf.Max(frameDt, 1e-3f) / Mathf.Max(1, _cam.pixelHeight) : 0f;
             _lastScreenPos = screenPos;
             _hasScreenPrev = true;
 
@@ -379,6 +406,7 @@ namespace ForgeBorn.UnityLayer
             _sw.Restart();
             HammerResult res = _session.ApplyHammer(cmd);
             _sw.Stop();
+            LastHammer = res;
 
             if (!res.Accepted) { _status = "rejected: " + res.Reason; return; }
             if (!res.Hit) { _status = "missed the blade"; return; }
@@ -434,6 +462,8 @@ namespace ForgeBorn.UnityLayer
             ThermalEnvironment env = SandboxRules.EnvFor(_env);
             if (!SandboxRules.NeedsTick(_session.Profile, env, _env == ForgeEnv.Oven)) return;
 
+            // Quenches need fine steps (the cooling rate at the nose decides hardness); air/oven/furnace tolerate coarse ones.
+            _session.Thermal.StepsPerCommand = (_env == ForgeEnv.Water || _env == ForgeEnv.Oil) ? 2000.0 : 500.0;
             ThermalResult r = _session.ApplyThermal(new ThermalCommand(0, env, dt));
             if (!r.Accepted) { _status = "thermal rejected: " + r.Reason; return; }
             _builder.RefreshState();

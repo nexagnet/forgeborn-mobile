@@ -57,8 +57,27 @@ namespace ForgeBorn.EditorTools
             sb.CaptureShowReport(true, ToolMode.Grind);
             Shot(sb, cam, dir, "06_tempered_with_report");
 
+            // Input-path verification: synthetic screen points through the real camera-ray -> blade space -> Domain pipeline.
+            // Screen coordinates are pixels of the render texture (bottom-left origin); the blade is centred at x = W/2.
+            var rayRt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);
+            cam.targetTexture = rayRt;
+            sb.CaptureShowReport(false, ToolMode.Grind);
+            double removedKg = sb.CaptureGrindDrag(new Vector2(W * 0.5f, 520f), new Vector2(W * 0.5f, 700f), 40, 0.016f);
+            Debug.Log("[Capture] grind drag removed " + (removedKg * 1000.0) + " g");
+            sb.CaptureSimulateSparks(0.12f);
+            Shot(sb, cam, dir, "07_after_grind_drag_with_sparks");
+
+            cam.targetTexture = rayRt;
+            sb.CaptureSetTool(ToolMode.Hammer);
+            sb.CaptureHammerScreen(new Vector2(W * 0.5f, 800f));
+            HammerResult screenHit = sb.LastHammer;
+            Debug.Log("[Capture] screen hammer hit=" + (screenHit != null && screenHit.Hit));
+            Object.DestroyImmediate(rayRt);
+
+            bool ok = removedKg > 0.001 && screenHit != null && screenHit.Hit;
+            Debug.Log(ok ? "[Capture] INPUT PATH OK" : "[Capture] INPUT PATH FAILED");
             Debug.Log("[Capture] done: " + dir);
-            EditorApplication.Exit(0);
+            EditorApplication.Exit(ok ? 0 : 1);
         }
 
         private static void Shot(ForgeSandbox sb, Camera cam, string dir, string name)
