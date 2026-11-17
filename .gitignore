@@ -30,3 +30,7 @@ Thumbs.db
 *.p12
 *.mobileprovision
 .env
+
+# Unity batchmode logs/results
+build/*.log
+build/*.xml

@@ -1,84 +1,92 @@
-# FORGEBORN MOBILE — Kế hoạch triển khai (bản của Claude)
+# FORGEBORN MOBILE — Kế hoạch triển khai v2 (iPhone + Unity Remote)
 
-Nguồn: `FORGEBORN_MOBILE_TECHNICAL_DESIGN_V3.md` và `CLAUDE_CODE_START_FORGEBORN_MOBILE.md`.
-Ngày lập: 2026-11-17.
+Thay thế kế hoạch cũ (hướng Android-first). Ngày lập: 2026-11-17.
+Nguồn gốc: `TECHNICAL_DESIGN.md` (thiết kế V3) và `CLAUDE_CODE_START.md`.
 
-## 1. Khảo sát PC (2026-11-17)
+## 1. Yêu cầu mới (chốt từ người dùng)
+- Thiết bị thật duy nhất: **iPhone**. Không có điện thoại Android, không có Mac (đã khảo sát: Windows 11, i7-10610U, Intel UHD).
+- Dev loop: **Unity Remote 5** (Editor trên PC, màn hình/cảm ứng từ iPhone).
+- Ưu tiên chất lượng game; tối ưu **riêng cho iOS và Android** nhưng chỉ ghi "đạt" khi đã kiểm chứng đúng thiết bị.
 
-| Hạng mục | Thực tế | Đánh giá |
+## 2. Sự thật về Unity Remote (đã tra tài liệu Unity)
+| Điều | Hệ quả cho kế hoạch |
+|---|---|
+| Game vẫn chạy **trên PC**; iPhone chỉ nhận hình nén và gửi cảm ứng/cảm biến về. Unity tự khuyên đo hiệu năng bằng bản build thật. | Remote kiểm chứng **cảm giác thao tác và logic**, **không** kiểm chứng FPS, nhiệt, bộ nhớ, shader Metal, ProMotion. |
+| Windows cần **iTunes** (Apple Mobile Device) và cáp USB. | Bước cài môi trường; nếu lỗi thì bảo bạn cài tay. |
+| Báo cáo cộng đồng: Remote 5 **không hỗ trợ Input System mới**. | Giữ **Input Manager cũ** (`Input.touches`), không thêm package Input System. Đã đúng với code hiện tại. |
+| Chỉ có iPhone ≥ iPhone 11 là phổ biến → **không có 3D Touch/Force Touch**. | Áp lực mài **không** lấy từ cảm ứng. Dùng thanh/nút áp lực trên màn hình (lượng tử 5 N), cùng một lệnh trên mọi thiết bị. |
+| Build IPA thật cần macOS + Xcode + Apple Developer. Máy này là Windows. | Mốc "chạy native trên iPhone" bị chặn cho tới khi có Mac (mua/thuê) hoặc dịch vụ build đám mây có chứng chỉ Apple. Xem §6. |
+
+## 3. Nguyên tắc chất lượng
+1. Domain độc lập Unity (đã có, 21 test) là nơi đặt mọi mô phỏng; test bằng `dotnet test`, không phụ thuộc thiết bị.
+2. Mỗi tuyên bố được gắn nhãn bằng chứng, **không trộn**:
+   `Domain test` · `Editor` · `Unity Remote (iPhone)` · `iOS build native` · `Android build` · `Android máy thật`.
+3. Số liệu hiệu năng trên PC chỉ là **ước lượng**; ngân sách thật (FPS, ms/frame, nhiệt) chỉ ghi khi đo trên iPhone/Android thật.
+4. Tối ưu riêng nền tảng nằm sau một lớp `PlatformProfile`, mặc định an toàn, bật bằng cấu hình, không rải `#if` khắp nơi.
+
+## 4. Kiến trúc nền tảng (mới)
+- `ForgeBorn.Unity/Platform/IPlatformProfile`: `TargetFps`, `MeshDetail` (số trạm × chu vi), `ShadowQuality`, `HapticsService`, `SafeArea`, `TextureFormat` gợi ý.
+- `IosProfile` (Metal, ASTC, 60/120 Hz ProMotion tùy máy, Dynamic Island/safe area, CoreHaptics qua plugin nhỏ), `AndroidProfile` (Vulkan/GLES3, vibrator, thermal API), `EditorProfile` (mô phỏng iPhone).
+- Chọn profile lúc chạy từ `Application.platform`; dữ liệu cấu hình nằm trong ScriptableObject, test được trong Editor.
+- Domain không biết nền tảng; chỉ nhận lệnh đã lượng tử (đảm bảo công bằng iOS/Android, so sánh bằng dung sai).
+
+## 5. Lộ trình
+
+### Giai đoạn A — Dev loop Unity Remote (làm ngay, ~1 buổi)
+| Bước | Việc | Kiểm chứng |
 |---|---|---|
-| OS | Windows 11 Pro 10.0.26200 | Không build được iOS trên máy này |
-| CPU / RAM | i7-10610U, 15,6 GB | Đủ cho Editor, hơi chậm |
-| GPU | Intel UHD (tích hợp) | Editor chạy được ở chất lượng thấp, không đại diện cho mobile |
-| Ổ C: | 25,7 GB trống lúc khảo sát (user xác nhận đủ chỗ) | Chấp nhận được |
-| Unity Hub | Đã cài (MSIX, 4.0.1) | Hub bản này không có lệnh `editors`, cần Unity CLI hoặc cài Editor thủ công |
-| Unity Editor 6.3 LTS | **Chưa cài** | Chặn M0/M1 phần engine |
-| .NET SDK | 8.0.428, đã cài | Dùng cho `dotnet test` |
-| Android SDK / adb / thiết bị | Chưa có | Unity Android module sẽ kèm SDK/NDK/JDK |
-| Mac / Xcode / iPhone | Không có | iOS = *unverified* |
-| git, gh, node, python | Có; gh đã đăng nhập, có quyền org `nexagnet` | OK |
+| A1 | Cài iTunes (kiểm tra bản winget/Store phù hợp), cài Unity Remote 5 trên iPhone (bạn làm), cắm cáp, bấm "Tin cậy" | iPhone hiện trong Unity: *Project Settings > Editor > Device = Any iOS Device* |
+| A2 | Game view đặt tỉ lệ iPhone dọc (19.5:9); `Compression = JPEG` ban đầu để mượt | Mở scene Sandbox, chạm vào iPhone làm lưỡi rãnh trong Editor |
+| A3 | Thay áp lực cảm ứng bằng **thanh áp lực** (UI, lượng tử 5 N); bỏ phụ thuộc `Touch.pressure` | Test EditMode: cùng gesture + cùng thanh → cùng lệnh |
+| A4 | Ghi `docs/DEVICE_MATRIX.md` theo nhãn bằng chứng ở §3 | Mục "Unity Remote (iPhone)" = OK chỉ sau khi bạn xác nhận chạm hoạt động |
+| A5 | Hoàn tất build APK đang chạy nền (chỉ để kiểm tra pipeline Android, hạ ưu tiên) | Log build; **không** gọi là đã chạy máy thật |
 
-## 2. Đánh giá 2 tài liệu thiết kế
+**Cổng A:** kéo ngón tay trên iPhone → rãnh xuất hiện trong Editor và khối lượng giảm đúng; mọi mục khác ghi "chưa kiểm chứng".
 
-**Đúng, giữ nguyên:** `WeaponState` là nguồn sự thật duy nhất; mô hình mặt cắt dọc lưỡi cho Phase A; đơn vị SI;
-gate theo từng milestone; không báo iOS xong khi chưa chạy trên iPhone; tách WORK/INSPECT.
-
-**Cần sửa / làm rõ:**
-1. File START yêu cầu tạo project ngay, nhưng máy chưa có Unity, Android SDK, Mac. M0 không thể đạt gate ở đây; phần Domain vẫn làm được.
-2. Interface §5 dùng `Vector3` của UnityEngine, trái với §14 (Domain độc lập Unity). Dùng kiểu vector double riêng (`Vec2d`, `Vec3d`).
-3. Mô hình mặt cắt thiếu đường tâm (centerline) cho từng trạm, nên không biểu diễn được uốn cong/lệch do đập (M2). Thêm offset và xoắn cho mỗi trạm.
-4. "Mài xuyên lưỡi" (§6.2) chưa có quy tắc topology. Quy ước: trạm bị mài xuyên toàn bộ chiều rộng thì đánh dấu `Severed`, diện tích bằng 0; khối lượng mất vẫn tính bằng chênh lệch hình học.
-5. Ngân sách 192–256 trạm × 32–64 điểm chu vi là giả thuyết, cần benchmark trên điện thoại thật.
-6. Mốc iOS 17+/Android 10+, bản Unity 6.3 LTS và yêu cầu store cần đối chiếu lại với tài liệu chính thức khi cài.
-7. Công bằng iOS/Android: lệnh nên được lượng tử hóa; trạng thái nội bộ so sánh bằng dung sai, không so bit.
-
-## 3. Kế hoạch code
-
-### Nguyên tắc
-- Domain thuần C# (`netstandard2.1`, C# 9, không UnityEngine). Dùng chung cho Unity qua asmdef và cho `dotnet test`.
-- Mọi thay đổi hình học đi qua lệnh (`ForgeCommand`) → kiểm tra → giao dịch (hoàn tác nếu sai) → nhật ký.
-- Trạng thái thật ghi trong `docs/IMPLEMENTATION_STATUS.md`, tách `Editor OK / Android device OK / iOS Xcode OK / iPhone OK`.
-
-### Giai đoạn 0 — Môi trường
-- [x] .NET SDK 8
-- [x] Unity Hub
-- [ ] Unity 6.3 LTS + Android Build Support (cài thủ công hoặc qua Unity CLI)
-- [x] Repo git, `.gitignore`
-- [x] Repo GitHub `nexagnet/forgeborn-mobile` (public)
-
-Giai đoạn 1 (Domain kernel + 21 test) đã xong, xem `docs/IMPLEMENTATION_STATUS.md`.
-
-### Giai đoạn 1 — Domain kernel (không cần Unity)
-| Bước | Nội dung | Kiểm chứng |
+### Giai đoạn B — Chất lượng vật lý lõi (Domain, không cần thiết bị)
+| Bước | Nội dung | Test |
 |---|---|---|
-| 1.1 | `Vec2d`, `Vec3d`, `BladeProfile` (mảng trạm: x, vòng điểm chu vi) | Thể tích lưỡi chữ nhật/thon có đáp án giải tích |
-| 1.2 | `WeaponState`, `MaterialData`, khối lượng = thể tích × khối lượng riêng | `Mass_Analytic_*` |
-| 1.3 | Hàng đợi lệnh + giao dịch + nhật ký | Lệnh bị từ chối không đổi trạng thái |
-| 1.4 | `ApplyGrind`: raycast giải tích, nội suy đường theo khoảng cách thế giới, mô hình mòn đơn điệu | Bộ test Grind ở §16 |
-| 1.5 | Kiểm tra toàn vẹn (NaN, độ dày âm, tự cắt) | `Mesh_NoNaN_*` |
-| 1.6 | Lưu/đọc nhị phân có SHA-256, ghi nguyên tử, khôi phục từ `.bak` | `Save_Atomic_*` |
+| B1 | Thêm **centerline + xoắn** mỗi trạm (offset Y/Z, góc) vào `BladeProfile`, lưu trữ schema 2 có migrate từ schema 1 | Thể tích giải tích với lưỡi cong; round-trip; đọc được file schema 1 |
+| B2 | **Búa (M2)**: lệnh `HammerStrike`, bảo toàn thể tích ≤ 1% sau 100 nhát, giao dịch + hoàn tác khi ring tự cắt | Property test 100 nhát ngẫu nhiên |
+| B3 | Nhiệt/tôi/ram (M3): trường nhiệt theo trạm, độ cứng, rủi ro nứt; xác định, có seed | Test bảo toàn năng lượng gần đúng, tái lập |
+| B4 | Chuẩn hóa đánh giá lưỡi (thẳng, đối xứng, vát, khối lượng, COM) | Bộ test vàng (golden) |
+| B5 | Microbenchmark solver trên PC để đặt ngân sách (**ước lượng**, nhãn rõ) | Báo cáo ms/stroke, cảnh báo nếu vượt ngân sách giả định |
 
-**Cổng:** `dotnet test` xanh; thể tích/khối lượng giảm đúng bằng phần đã mài; mài không tiếp xúc thì `removedVolume == 0`.
+**Cổng B:** `dotnet test` xanh toàn bộ; không có đường code làm thể tích tăng ngoài búa có kiểm soát.
 
-### Giai đoạn 2 — Unity M0/M1 (cần Unity)
-1. Project URP dọc, scene thử nghiệm, sinh bằng script Editor.
-2. `BladeMeshBuilder` dựng mesh từ `WeaponState` (Mesh.AllocateWritableMeshData), chỉ dựng lại đoạn bẩn.
-3. Điều phối cảm ứng WORK/INSPECT, raycast giải tích (không dùng `MeshCollider`), đơn vị mét.
-4. HUD: đồng hồ khối lượng, safe area, nút ≥ 48 dp.
-5. Build APK debug, ghi `docs/DEVICE_MATRIX.md`; iOS ghi rõ *chưa kiểm chứng*.
+### Giai đoạn C — Chất lượng hình ảnh và cảm giác (Editor + Remote)
+- Mesh: tách cạnh sắc (vertex đôi theo góc), pháp tuyến đúng cho vát; chỉ dựng lại đoạn bẩn bằng `Mesh.AllocateWritableMeshData` + Burst/Jobs nếu đo thấy cần.
+- Shader URP thép: vệt mài theo hướng (anisotropic), nhiệt màu (temper colors) từ trường nhiệt, tia lửa (VFX nhẹ, giới hạn hạt theo profile).
+- Cảm giác: âm thanh mài theo áp lực/tốc độ, haptic (iOS CoreHaptics / Android Vibrator) đi qua `HapticsService`, camera INSPECT mượt, chế độ WORK/INSPECT rõ ràng, nút ≥ 48 dp/44 pt.
+- Mỗi hiệu ứng có mức chất lượng (High/Med/Low) trong profile; ảnh chụp Editor làm bằng chứng hình ảnh (nhãn `Editor`).
 
-**Cổng M1:** kéo ngón tay tạo được rãnh đo được và khối lượng lưu lại giảm đúng.
+### Giai đoạn D — Tối ưu riêng iOS / Android (cấu hình sẵn, kiểm chứng theo thiết bị)
+| iOS | Android |
+|---|---|
+| Metal, ASTC, 60 Hz mặc định; 120 Hz ProMotion là tùy chọn có kiểm tra nhiệt | Vulkan ưu tiên, GLES3 dự phòng; ASTC |
+| Safe area + Dynamic Island, CoreHaptics | Thermal API, Adaptive Performance (tùy chọn), vibrator |
+| Giới hạn bộ nhớ theo iPhone cũ nhất hỗ trợ (đặt sau khi đo) | Phân tầng thiết bị (low/mid/high) theo RAM/GPU |
+Trạng thái mỗi mục: **Đã cấu hình** (code + test Editor) ≠ **Đã đo** (cần máy thật). Không gộp.
 
-### Giai đoạn 3 — M2 đến M6 (theo tài liệu)
-M2 Hammer (bảo toàn thể tích ≤ 1% sau 100 nhát, thêm centerline) → M3 nhiệt/tôi/ram → M4 UX và nghệ thuật →
-M5 đánh giá/lưu/hợp đồng → M6 bản offline hoàn chỉnh (cần cả Android và iPhone thật; thiếu một thì M6 chưa xong).
+### Giai đoạn E — Cổng thiết bị thật (bị chặn bởi phần cứng/tài khoản)
+- **iOS native**: cần macOS + Xcode + Apple Developer (cài lên máy cá nhân được với tài khoản miễn phí nhưng hạn 7 ngày; phát hành cần gói trả phí). Lựa chọn: thuê Mac đám mây, hoặc dịch vụ build đám mây, hoặc mượn Mac. **Cần bạn quyết định** (xem §7).
+- **Android máy thật**: chưa có thiết bị → trạng thái giữ "chưa kiểm chứng"; có thể kiểm tra chức năng bằng emulator (không đại diện hiệu năng).
+- M6 (bản offline hoàn chỉnh) **không** được báo xong cho tới khi cả hai nền tảng có bằng chứng máy thật (đúng yêu cầu thiết kế gốc).
 
-## 4. Rủi ro
-
+## 6. Rủi ro
 | Rủi ro | Mức | Xử lý |
 |---|---|---|
-| Chưa có Unity Editor | Cao | Cài thủ công; làm Domain trước |
-| Không có thiết bị Android/iPhone | Cao | Ghi *chưa kiểm chứng* trong DEVICE_MATRIX |
-| Không có Mac/Xcode/tài khoản Apple | Cao, chặn M6 | Mac từ xa hoặc dịch vụ build macOS |
-| Hammer làm mesh không hợp lệ | Trung bình | Giao dịch hoàn tác, giảm bước, thử lại |
-| Hiệu năng Editor trên Intel UHD | Trung bình | Số liệu hiệu năng lấy từ điện thoại |
+| Remote nén hình, độ trễ → cảm giác sai so với native | Cao | Dùng Remote chỉ cho thao tác; cảm giác/tốc độ chốt bằng build native khi có Mac |
+| iTunes/driver Apple lỗi trên Windows | Trung bình | Tự cài; lỗi thì hướng dẫn cài tay; thử cáp/cổng khác |
+| Remote không hỗ trợ Input System, API cũ bị đánh dấu lỗi thời | Trung bình | Khóa Input cũ sau lớp `IPointerSource` để thay thế sau này |
+| Không có Mac → không đo được hiệu năng/nhiệt iOS thật | Cao | Ngân sách ước lượng gắn nhãn; thuê Mac sớm ở Giai đoạn C |
+| Tối ưu "mù" cho Android không máy thật | Cao | Chỉ cấu hình an toàn, ghi chưa kiểm chứng |
+| Lưỡi tự cắt/độ chính xác với hammer | Trung bình | Giao dịch hoàn tác, back-off đã có |
+
+## 7. Quyết định cần bạn xác nhận
+1. Cho phép mình cài **iTunes** lên PC (kèm driver Apple) để Remote nhận iPhone?
+2. Có kế hoạch tiếp cận Mac (thuê đám mây / mượn / dịch vụ build) và tài khoản Apple Developer không, hay giữ tới khi cần?
+3. Áp lực mài bằng **thanh trượt trên màn hình** (vì iPhone mới không có cảm ứng lực) có chấp nhận được?
+
+## 8. Việc đổi tài liệu khi duyệt
+Cập nhật `IMPLEMENTATION_STATUS.md` (nhãn bằng chứng), `README.md`, thêm `docs/adr/ADR-002-iphone-remote-first.md`, tạo `DEVICE_MATRIX.md`.

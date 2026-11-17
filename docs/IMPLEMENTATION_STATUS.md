@@ -7,17 +7,18 @@ Last updated: 2026-11-17. Only facts verified on the dev PC are marked done.
 | Item | Status |
 |---|---|
 | Domain kernel, `dotnet test` (headless) | **OK** — 21/21 tests pass (.NET 8.0.428, Windows 11) |
-| Unity Editor | Not installed on dev PC — **not verified** |
-| Android build / device | Not verified (no Unity, no SDK, no device) |
+| Unity Editor 6000.3.28f1 | Installed; setup + 2 EditMode tests pass (see DEVICE_MATRIX.md) |
+| Unity Remote 5 on iPhone | **Not verified** — iPhone not yet connected/confirmed |
+| Android build / device | Not verified (build stopped, no device) |
 | iOS Xcode export / iPhone | Not verified (no Mac, Xcode, signing, device) |
 
 ## Milestones
 
 | Milestone | Status | Evidence / blocker |
 |---|---|---|
-| M0 feasibility gate | **Blocked** | Needs Unity 6.3 LTS + Android Build Support installed by the user; iOS needs a Mac |
+| M0 feasibility gate | **Partly blocked** | Editor OK; device proof needs iPhone via Remote (pending) and a Mac for native iOS |
 | M1 geometry bench — Domain part | **Done (headless)** | Tests below |
-| M1 geometry bench — Unity part (mesh, touch, scene) | Not started | Blocked on Unity Editor |
+| M1 geometry bench — Unity part (mesh, touch, scene) | **Code done, device-unverified** | `BladeMeshBuilder`, `ForgeSandbox`, on-screen pressure; EditMode 2/2 |
 | M2 hammer | Not started | |
 | M3 heat / quench / temper | Not started | |
 | M4–M6 | Not started | |
