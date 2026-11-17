@@ -185,10 +185,9 @@ namespace ForgeBorn.UnityLayer
                 _cam = go.AddComponent<Camera>();
             }
             if (FindFirstObjectByType<AudioListener>() == null) _cam.gameObject.AddComponent<AudioListener>();
-            _cam.orthographic = true;
-            _cam.orthographicSize = ZoomSizes[0];
-            _cam.transform.position = new Vector3(0f, _camY, -2f);
-            _cam.transform.rotation = Quaternion.identity;
+            _cam.orthographic = false;
+            _cam.fieldOfView = SandboxEnvironment.FovDeg;
+            PoseCamera();
             _cam.clearFlags = CameraClearFlags.SolidColor;
             _cam.backgroundColor = new Color(0.08f, 0.08f, 0.1f);
             _cam.nearClipPlane = 0.1f;
@@ -224,6 +223,11 @@ namespace ForgeBorn.UnityLayer
             Shader fallback = Shader.Find("Universal Render Pipeline/Lit");
             if (fallback == null) fallback = Shader.Find("Standard");
             return new Material(fallback) { color = new Color(0.62f, 0.64f, 0.68f) };
+        }
+
+        private void PoseCamera()
+        {
+            SandboxEnvironment.PoseCamera(_cam.transform, ZoomSizes[_zoomIndex], _camY);
         }
 
         private void ResetView()
@@ -455,8 +459,8 @@ namespace ForgeBorn.UnityLayer
             {
                 Vector2 delta = pos - _lastScreenPos;
                 _bladeRoot.Rotate(_bladeRoot.TransformDirection(Vector3.right), -delta.x * 0.4f, Space.World); // roll about blade length
-                _camY = Mathf.Clamp(_camY - delta.y * _cam.orthographicSize * 2f / Screen.height, -0.6f, 0.6f);
-                _cam.transform.position = new Vector3(0f, _camY, -2f);
+                _camY = Mathf.Clamp(_camY - delta.y * ZoomSizes[_zoomIndex] * 2f / Screen.height, -0.6f, 0.6f);
+                PoseCamera();
             }
             _lastScreenPos = pos;
             _hasScreenPrev = true;
@@ -533,7 +537,7 @@ namespace ForgeBorn.UnityLayer
             _speedLabel = MakeButton(safe, 0, 4, 3, "x1", CycleSpeed);
             _speedBtn = _speedLabel;
             MakeButton(safe, 1, 4, 3, "New blank", NewBlank);
-            MakeButton(safe, 2, 4, 3, "Reset view", () => { ResetView(); _camY = BaseCamY; _cam.transform.position = new Vector3(0f, _camY, -2f); });
+            MakeButton(safe, 2, 4, 3, "Reset view", () => { ResetView(); _camY = BaseCamY; PoseCamera(); });
             MakeButton(safe, 3, 4, 3, "Guide", () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); });
             BuildTutorialPanel(safe);
 
@@ -735,7 +739,7 @@ namespace ForgeBorn.UnityLayer
         private void CycleZoom()
         {
             _zoomIndex = (_zoomIndex + 1) % ZoomSizes.Length;
-            _cam.orthographicSize = ZoomSizes[_zoomIndex];
+            PoseCamera();
         }
 
         private void ToggleReport()

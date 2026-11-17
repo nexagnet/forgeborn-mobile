@@ -30,7 +30,7 @@ Mỗi trạm là một chế độ của cùng một cảnh, chuyển bằng tha
 
 ## 3. Bố cục cảnh (ảnh chụp dọc 9:19.5)
 
-- Camera hiện tại trực giao, nhìn thẳng mặt lưỡi (dễ chạm chính xác). Các lớp theo trục Z: lưỡi (z=0), đe (z=0.5), lò (z=1.2), tường gạch (z=2.5).
+- Camera phối cảnh FOV 35 độ, lệch ngang nhẹ để thấy chiều sâu; mặt lưỡi vẫn hướng về camera (tia chạm dùng ScreenPointToRay nên đúng với phối cảnh). Các lớp theo trục Z: lưỡi (z=0), đe (z=0.5), lò (z=1.2), tường gạch (z=2.5).
 - Lưỡi nằm dọc ở giữa. Đe ngay dưới phần giữa lưỡi, lò rèn bên trái, tường gạch phía sau, ánh lò ấm từ trái, ánh sáng lạnh từ cửa sổ bên phải (HDRI).
 - Vùng bàn tay (dưới 33% màn hình) chỉ chứa nút. Mọi vật quan trọng nằm trên đó.
 - Giai đoạn sau: chuyển sang camera phối cảnh có xoay nhẹ khi sang trạm; cần giữ nguyên đường chạm (ray camera) đã có test.
@@ -82,6 +82,6 @@ Mỗi trạm là một chế độ của cùng một cảnh, chuyển bằng tha
 | D1 | Cảnh xưởng: tường, đe, lò, HDRI, bloom | Đang làm (ảnh render headless) |
 | D2 | Thanh tab trạm và HUD theo trạm | Tiếp theo |
 | D3 | Đơn hàng + chấm điểm theo spec | Chưa |
-| D4 | Camera phối cảnh, hiệu ứng tôi (hơi nước) | Chưa |
+| D4 | Camera phối cảnh (xong, ảnh render), hiệu ứng tôi (hơi nước) | Một phần |
 | D5 | Kinh tế, nâng cấp, lưu hồ sơ | Chưa |
 | D6 | Âm thanh thật, haptics native, thử trên thiết bị | Cần phần cứng |

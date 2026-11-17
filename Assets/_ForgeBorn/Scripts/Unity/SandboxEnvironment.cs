@@ -13,6 +13,22 @@ namespace ForgeBorn.UnityLayer
     {
         public const int CubeSize = 64;
 
+        /// <summary>Vertical field of view of the sandbox camera (perspective). A phone-friendly, slightly telephoto 35 degrees.</summary>
+        public const float FovDeg = 35f;
+        /// <summary>Distance from the blade plane at which the view is 0.78 m half-height (the old orthographic framing).</summary>
+        public static readonly float BaseDistance = 0.78f / Mathf.Tan(0.5f * FovDeg * Mathf.Deg2Rad);
+        /// <summary>Sideways camera offset at base distance: gives a slight three-quarter view so depth and parallax read.</summary>
+        public const float SideOffset = 0.16f;
+
+        /// <summary>Camera pose for a framing half-height (m at the blade plane) and vertical look-at height.</summary>
+        public static void PoseCamera(Transform cam, float halfHeightM, float lookY)
+        {
+            float dist = halfHeightM / Mathf.Tan(0.5f * FovDeg * Mathf.Deg2Rad);
+            float side = SideOffset * (dist / BaseDistance);
+            cam.position = new Vector3(side, lookY, -dist);
+            cam.rotation = Quaternion.LookRotation(new Vector3(-side, 0f, dist), Vector3.up);
+        }
+
         /// <summary>HDR radiance seen along a world direction. Pure function so it can be unit tested.</summary>
         public static Color Radiance(Vector3 d)
         {
@@ -106,7 +122,7 @@ namespace ForgeBorn.UnityLayer
                 Object.Destroy(quad.GetComponent<Collider>());
                 quad.transform.SetParent(root.transform, false);
                 quad.transform.position = new Vector3(0f, 0f, 3f);
-                quad.transform.localScale = new Vector3(8f, 8f, 1f);
+                quad.transform.localScale = new Vector3(14f, 14f, 1f);
                 var mr = quad.GetComponent<MeshRenderer>();
                 mr.sharedMaterial = new Material(sh);
                 mr.shadowCastingMode = ShadowCastingMode.Off;
