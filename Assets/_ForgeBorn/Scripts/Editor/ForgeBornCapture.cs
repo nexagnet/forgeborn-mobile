@@ -50,7 +50,13 @@ namespace ForgeBorn.EditorTools
             r = sb.CaptureHammer(0.4, 0.0, 120.0);
             Shot(sb, cam, dir, "04_after_two_hot_blows");
 
-            sb.CaptureThermal(ForgeEnv.Water, 30.0);
+            // First seconds in the bath: the blade is still hot, so it steams. Then the rest of the quench without vapour.
+            sb.CaptureThermal(ForgeEnv.Water, 0.4);
+            sb.CaptureSimulateSteam(1.0f);
+            Shot(sb, cam, dir, "04b_quench_steam");
+            sb.CaptureClearSteam();
+
+            sb.CaptureThermal(ForgeEnv.Water, 29.6);
             Shot(sb, cam, dir, "05_quenched");
 
             sb.CaptureThermal(ForgeEnv.Oven, 3600.0);

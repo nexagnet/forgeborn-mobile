@@ -82,6 +82,6 @@ Mỗi trạm là một chế độ của cùng một cảnh, chuyển bằng tha
 | D1 | Cảnh xưởng: tường, đe, lò, HDRI, bloom | Đang làm (ảnh render headless) |
 | D2 | Thanh tab trạm và HUD theo trạm | Tiếp theo |
 | D3 | Đơn hàng + chấm điểm theo spec | Chưa |
-| D4 | Camera phối cảnh (xong, ảnh render), hiệu ứng tôi (hơi nước) | Một phần |
+| D4 | Camera phối cảnh và hơi nước khi tôi (nước trắng, dầu khói sẫm; chỉ hình ảnh, không đổi mô hình nhiệt). Xong ở mức ảnh render headless; tiếng xì và rung chưa có | Xong phần hình |
 | D5 | Kinh tế, nâng cấp, lưu hồ sơ | Chưa |
 | D6 | Âm thanh thật, haptics native, thử trên thiết bị | Cần phần cứng |

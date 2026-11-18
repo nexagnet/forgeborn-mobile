@@ -63,6 +63,8 @@ namespace ForgeBorn.UnityLayer
         private float _lastStrikeTime = -10f;
 
         private SparkEffect _sparks;
+        private SteamEffect _steam;
+        private readonly Vector3[] _steamPoints = new Vector3[12];
         private SandboxAudio _audio;
         private IHapticsService _haptics;
 
@@ -128,6 +130,19 @@ namespace ForgeBorn.UnityLayer
         public void CaptureSetTool(ToolMode tool) { _tool = tool; }
 
         public void CaptureSimulateSparks(float seconds) { _sparks.SimulateForCapture(seconds); }
+
+        public void CaptureClearSteam() { _steam.Clear(); }
+
+        /// <summary>Headless capture: emit one dt of steam for the current bath/temperature, then advance the particles.</summary>
+        public void CaptureSimulateSteam(float seconds)
+        {
+            const int Steps = 8;
+            for (int i = 0; i < Steps; i++)
+            {
+                TickSteam(seconds / Steps);
+                _steam.SimulateForCapture(seconds / Steps);
+            }
+        }
 
         /// <summary>Runs the thermal model for simSeconds in the given environment and refreshes visuals (no real-time wait).</summary>
         public void CaptureThermal(ForgeEnv env, double simSeconds)
@@ -268,6 +283,10 @@ namespace ForgeBorn.UnityLayer
             _sparks = go.AddComponent<SparkEffect>();
             _sparks.Setup(sparkShader != null ? new Material(sparkShader) : null, _profile.MaxSparkParticles);
 
+            var steamShader = Resources.Load<Shader>("ForgeBornSteam");
+            _steam = new GameObject("Steam").AddComponent<SteamEffect>();
+            _steam.Setup(steamShader != null ? new Material(steamShader) : null, Mathf.Max(48, _profile.MaxSparkParticles));
+
             var audioGo = new GameObject("Audio");
             _audio = audioGo.AddComponent<SandboxAudio>();
             _audio.Setup();
@@ -309,6 +328,7 @@ namespace ForgeBorn.UnityLayer
             }
 
             TickThermal();
+            TickSteam(Time.deltaTime);
             _pulse += Time.unscaledDeltaTime;
 
             _hudTimer -= Time.unscaledDeltaTime;
@@ -488,6 +508,25 @@ namespace ForgeBorn.UnityLayer
                 _status = "CRACKED during " + env.Id + "!";
                 _haptics.Impact(1f);
             }
+        }
+
+        /// <summary>Steam rises from the hot stations of a blade sitting in a liquid bath. Visual only.</summary>
+        private void TickSteam(float dt)
+        {
+            if (_steam == null || dt <= 0f) return;
+            float rate = SteamModel.PuffsPerSecond(SandboxRules.MaxTempK(_session.Profile), _env);
+            if (rate <= 0f) return;
+            if (_profile.Tier == QualityTier.Low) rate *= 0.5f;
+
+            BladeProfile p = _session.Profile;
+            int n = 0;
+            int stride = Mathf.Max(1, p.StationCount / _steamPoints.Length);
+            for (int s = 0; s < p.StationCount && n < _steamPoints.Length; s += stride)
+            {
+                if (p.Severed[s] || p.TempK[s] <= SteamModel.ColdK) continue;
+                _steamPoints[n++] = _bladeRoot.TransformPoint(new Vector3((float)p.X[s], 0f, 0f));
+            }
+            _steam.Emit(_steamPoints, n, rate, dt, SteamModel.Tint(_env));
         }
 
         // ---------------------------------------------------------------- HUD
