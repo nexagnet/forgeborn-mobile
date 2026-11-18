@@ -8,8 +8,8 @@ Cập nhật: 2026-11-18. File này nói game đang ở đâu và làm gì tiế
 |---|---|
 | Hướng | **PC (Windows) trước**, điện thoại sau cổng P5 |
 | Unity | 6000.3.28f1 (6.3 LTS), build target **Windows64**, backend Mono, không gian màu **Linear** |
-| Test | Domain `dotnet test` **63/63**; Unity EditMode **33/33** |
-| Giai đoạn | P0 xong; **P0.5 xong trừ chụp lại ảnh chuẩn** (xem §6); sẵn sàng vào P1 |
+| Test | Domain `dotnet test` **63/63** (chưa chạy lại sau P1, Domain không đổi); Unity EditMode **40/40** |
+| Giai đoạn | P0 xong; P0.5 xong trừ ảnh chuẩn; **P1 làm dở** (xem §6 "P1 đã làm / còn lại") |
 | Bản Windows | **Build được và chạy được** (123.9 MB, `build/out/win/ForgeBorn.exe`); đo trên Intel UHD ở 1280x720: nhàn rỗi 4.4 ms, mài 16.0 ms trung bình (p95 22.3 ms). Xem `BENCHMARKS.md` |
 | Git | Nhánh `main`, các commit cục bộ chưa push |
 | Chưa kiểm chứng | Cảm giác chơi (chuột), giao diện bản PC (đang là bố cục điện thoại kéo ra khung ngang), 1920x1080 (treo lúc khởi động), âm thanh nghe thật, GPU khác, mọi thứ trên điện thoại |
@@ -69,6 +69,12 @@ Lưu ý: công cụ chỉ hiện trong Claude nếu phiên mở **sau** khi serv
 - Build Windows thành công qua menu `ForgeBorn > Build Windows` (gọi qua MCP: `execute_code` với `EditorApplication.delayCall += () => EditorApplication.ExecuteMenuItem("ForgeBorn/Build Windows")`, rồi đọc `build/out/win_build.txt`). **Không** dùng `manage_build action=build`: job bị mất và Editor từng dừng. Lần đầu build lỗi vì `Handheld.Vibrate` không có trên Windows; đã bọc `#if UNITY_IOS || UNITY_ANDROID`.
 - `-fb-screenshot` và `-fb-benchmark` chạy đúng. Ảnh chụp từ .exe (`build/out/shot_1280x720.png`, không nằm trong git) cho thấy giao diện điện thoại dọc bị kéo ra khung ngang: nút lớn che lưỡi, HUD ghi `[editor-sim-ios]`, toàn bộ chữ tiếng Anh. Đó là việc của P1.
 - `-fb-benchmark` từng bị giới hạn 60 khung vì `ForgeSandbox.Initialize` đặt lại `targetFrameRate`; đã sửa trong `PlayerAutomation.cs`.
+
+### P1 đã làm / còn lại (2026-11-18)
+Đã có và test EditMode xanh: `PointerSource.cs` (chuột/cảm ứng), `DesktopKeys.cs` (1–6, Tab, `[` `]`, `-` `=`, Esc; Ctrl+con lăn đổi áp lực; con lăn zoom; chuột phải kéo xoay), HUD ngang (`CanvasScaler` 1920x1080: cột trái, thanh dưới, bảng thông số), lưỡi nằm ngang, `SandboxProps` xếp lại cho khung ngang, hồ sơ `windows` (hết nhãn `[editor-sim-ios]` trên .exe), lớp phủ tạm dừng (Resume/Fullscreen/Volume/Quit), cửa sổ 1280x720 resize được, chạy nền. `ForgeBornCapture` chụp 1920x1080 hoặc `-fb-size 1280x720`.
+Đã xem bằng ảnh: bố cục 1920x1080 (batchmode, trước khi xếp lại vật) và game view Editor 880x373 sau khi xếp vật, lớp phủ tạm dừng. **Chưa** chụp lại 1920x1080/1280x720 sau bố cục vật mới; chưa thử phím/chuột/Quit/Fullscreen trên bản .exe.
+Còn lại: menu chính, cài đặt (độ phân giải, tầng chất lượng), tách HUD khỏi `ForgeSandbox`, chụp ảnh xác nhận, chỉnh màu khối lò (mặt trước trùng màu tường, chỉ thấy mặt bên như thanh dọc; P4).
+Unity MCP: bật tùy chọn "Auto-Start on Editor Load" của gói (EditorPrefs `MCPForUnity.AutoStartOnLoad`), nên máy chủ tự chạy khi mở Editor, không cần bấm Start Server. Chụp màn hình trong Play mode: `manage_camera action=screenshot` (ra `Assets/Screenshots/`, xóa sau khi xem, đừng commit). Chụp batchmode vẫn cần Editor đóng.
 
 ### Còn dở
 1. Chụp lại ảnh chuẩn trong `docs/shots/` (đang là bản Gamma cũ) sau khi đổi Linear, chỉnh bloom (`ForgeBornCapture.Run`, Editor đóng, không `-nographics`).
