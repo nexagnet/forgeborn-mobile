@@ -102,5 +102,35 @@ namespace ForgeBorn.Tests
             float[] b = Block(256, 2);
             for (int i = 0; i < b.Length; i += 2) Assert.AreEqual(b[i], b[i + 1]);
         }
-    }
+    
+        private static double HighFreqShare(float[] d)
+        {
+            double diff = 0.0, sum = 0.0;
+            for (int i = 2; i < d.Length; i += 2) { diff += System.Math.Abs(d[i] - d[i - 2]); sum += System.Math.Abs(d[i]); }
+            return diff / System.Math.Max(sum, 1e-9);
+        }
+
+        [Test]
+        public void Hiss_IsAudible_BoundedBrighterThanGrinding_AndStopsWhenSet0()
+        {
+            _audio.SetHiss(1f);
+            for (int i = 0; i < 8; i++) Block();
+            float[] hiss = Block();
+            Assert.Greater(Rms(hiss, 0, hiss.Length), 0.005, "hiss must be audible");
+            foreach (float v in hiss) { Assert.IsFalse(float.IsNaN(v) || float.IsInfinity(v)); Assert.LessOrEqual(System.Math.Abs(v), 1f); }
+
+            var grind = new GameObject("grind_test").AddComponent<SandboxAudio>();
+            grind.SetGrind(1f, 0f);
+            var gb = new float[8192];
+            for (int i = 0; i < 8; i++) grind.Render(gb, 2);
+            grind.Render(gb, 2);
+            Object.DestroyImmediate(grind.gameObject);
+            Assert.Greater(HighFreqShare(hiss), HighFreqShare(gb) * 2.0, "hiss must be much brighter than dull grinding");
+
+            _audio.SetHiss(0f);
+            for (int i = 0; i < 40; i++) Block();
+            float[] after = Block();
+            Assert.Less(Rms(after, 0, after.Length), 1e-3);
+        }
+}
 }

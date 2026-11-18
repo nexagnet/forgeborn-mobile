@@ -399,7 +399,7 @@ namespace ForgeBorn.UnityLayer
             _paused = paused;
             Time.timeScale = paused ? 0f : 1f;
             if (_menus != null) { if (paused) _menus.ShowPause(); else _menus.HideAll(); }
-            if (paused && _audio != null) _audio.SetGrind(0f, 0f);
+            if (paused && _audio != null) { _audio.SetGrind(0f, 0f); _audio.SetHiss(0f); }
             _hasPrev = false;
             _hasScreenPrev = false;
         }
@@ -408,7 +408,7 @@ namespace ForgeBorn.UnityLayer
         {
             _paused = true;
             Time.timeScale = 0f;
-            if (_audio != null) _audio.SetGrind(0f, 0f);
+            if (_audio != null) { _audio.SetGrind(0f, 0f); _audio.SetHiss(0f); }
             _menus.ShowMain();
         }
 
@@ -701,6 +701,7 @@ namespace ForgeBorn.UnityLayer
         {
             if (_steam == null || dt <= 0f) return;
             float rate = SteamModel.PuffsPerSecond(SandboxRules.MaxTempK(_session.Profile), _env);
+            if (_audio != null) _audio.SetHiss(Mathf.Clamp01(rate / SteamModel.WaterPuffsPerSecond));
             if (rate <= 0f) return;
             if (_profile.Tier == QualityTier.Low) rate *= 0.5f;
 
@@ -952,7 +953,7 @@ namespace ForgeBorn.UnityLayer
             if (!_career.ShopOpen) { _status = "The shop opens after your first delivered order."; return; }
             _paused = true;
             Time.timeScale = 0f;
-            if (_audio != null) _audio.SetGrind(0f, 0f);
+            if (_audio != null) { _audio.SetGrind(0f, 0f); _audio.SetHiss(0f); }
             _hasPrev = false;
             _hasScreenPrev = false;
             _shop.Show();

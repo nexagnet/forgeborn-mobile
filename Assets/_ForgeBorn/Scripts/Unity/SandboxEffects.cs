@@ -41,6 +41,8 @@ namespace ForgeBorn.UnityLayer
     {
         private volatile float _grindGain;
         private volatile float _grindTone = 0.2f;
+        private volatile float _hissGain;
+        private float _hissSmooth, _prevNoise;
         private volatile float _impactEnv;
         private volatile float _impactFreq = 220f;
         private float _gainSmooth, _lp;
@@ -76,6 +78,9 @@ namespace ForgeBorn.UnityLayer
             _grindTone = Mathf.Lerp(0.05f, 0.55f, Mathf.Clamp01(tone01));
         }
 
+        /// <summary>Quench hiss: gain01 follows how hard the blade is steaming. 0 = silent.</summary>
+        public void SetHiss(float gain01) { _hissGain = Mathf.Clamp01(gain01); }
+
         /// <summary>Hammer clank. hot01 lowers the pitch a little (soft metal).</summary>
         public void Impact(float energy01, float hot01)
         {
@@ -105,7 +110,7 @@ namespace ForgeBorn.UnityLayer
         /// <summary>Fills an interleaved buffer (also called directly by tests, no audio device needed).</summary>
         public void Render(float[] data, int channels)
         {
-            float g = _grindGain, tone = _grindTone;
+            float g = _grindGain, tone = _grindTone, hiss = _hissGain;
             float env = _impactEnv, freq = _impactFreq;
             double step = 2.0 * System.Math.PI * freq / _sampleRate;
             int frames = data.Length / channels;
@@ -115,6 +120,10 @@ namespace ForgeBorn.UnityLayer
                 float n = Noise();
                 _lp += (n - _lp) * tone;
                 float s = _lp * _gainSmooth * 0.45f;
+                // Steam hiss: differentiated white noise is a high-pass, so it sounds like escaping vapour, not like grinding.
+                _hissSmooth += (hiss - _hissSmooth) * 0.0015f;
+                s += (n - _prevNoise) * 0.5f * _hissSmooth * 0.35f;
+                _prevNoise = n;
                 if (env > 1e-4f)
                 {
                     _impactPhase += step;
