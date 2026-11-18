@@ -74,6 +74,11 @@ namespace ForgeBorn.Tests
 
             PlatformProfile ed = PlatformProfile.ForPlatform(RuntimePlatform.WindowsEditor, 16000);
             Assert.IsTrue(ed.Simulated, "Editor / Remote profile must be flagged as simulated, never as device evidence");
+
+            PlatformProfile win = PlatformProfile.ForPlatform(RuntimePlatform.WindowsPlayer, 16000);
+            Assert.AreEqual("windows", win.Name);
+            Assert.IsFalse(win.Simulated, "The Windows build is a real target, not a simulation");
+            Assert.IsFalse(win.UseHandheldHaptics);
         }
     }
 

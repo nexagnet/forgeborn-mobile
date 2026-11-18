@@ -700,7 +700,7 @@ namespace ForgeBorn.UnityLayer
             _tutPanel = new GameObject("TutorialPanel", typeof(RectTransform), typeof(Image));
             var rt = _tutPanel.GetComponent<RectTransform>();
             rt.SetParent(safe, false);
-            rt.anchorMin = new Vector2(0.135f, 0.79f);
+            rt.anchorMin = new Vector2(0.135f, 0.84f);
             rt.anchorMax = new Vector2(0.715f, 0.99f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             var img = _tutPanel.GetComponent<Image>();

@@ -53,6 +53,9 @@ namespace ForgeBorn.UnityLayer
                     int sparks = t == QualityTier.High ? 300 : (t == QualityTier.Medium ? 150 : 60);
                     return new PlatformProfile("android", t, 60, sparks, t != QualityTier.Low, true, false);
                 }
+                case RuntimePlatform.WindowsPlayer:
+                    // The shipping PC target. High is what BENCHMARKS.md measured on an Intel UHD iGPU (1280x720); a Low tier is P4 work.
+                    return new PlatformProfile("windows", QualityTier.High, 60, 300, true, false, false);
                 default:
                     // Editor and Unity Remote run on the PC: simulate an iPhone-class profile, flagged as simulated.
                     return new PlatformProfile("editor-sim-ios", QualityTier.High, 60, 300, true, false, true);
