@@ -1,4 +1,30 @@
-# FORGEBORN MOBILE — Kế hoạch triển khai v2 (iPhone + Unity Remote)
+# FORGEBORN — Kế hoạch triển khai v3 (PC trước, điện thoại sau)
+
+Ngày đổi: 2026-11-18. **v3 thay thế v2.** Phần v2 (iPhone + Unity Remote) giữ nguyên bên dưới làm lịch sử; các giai đoạn A–E của v2 không còn là lộ trình hiện hành.
+
+## v3. Lý do và lộ trình hiện hành
+
+Không có Android; iPhone qua Unity Remote chỉ cho thấy hình/cảm ứng còn hiệu năng là của PC; build iOS cần Mac + Apple Developer. Bản Windows kiểm chứng được ngay trên máy này (build thật, chuột thật, FPS thật; máy chuẩn thấp: i7-10610U, Intel UHD). `Domain` độc lập nền tảng nên giữ nguyên.
+
+Chốt với người dùng: mục tiêu **bản Windows chơi được, chưa phát hành/Steam**; bố cục **ngang 16:9 thiết kế lại**; điện thoại làm sau cổng P5.
+
+| Giai đoạn | Nội dung | Cổng |
+|---|---|---|
+| P0 | Chuyển hướng: tài liệu, build target Windows, mốc test xanh | `dotnet test` 63/63, EditMode 33/33 |
+| P1 | `IPointerSource` (chuột; cảm ứng cắm sau), phím tắt, UI ngang 1920x1080, menu/tạm dừng/cài đặt, tách HUD khỏi `ForgeSandbox` | Ảnh render 1920x1080 và 1280x720, "INPUT PATH OK" |
+| P2 | `ForgeBornBuild.BuildWindows`, chạy .exe, đọc `Player.log`, đo FPS trên iGPU | exe chạy sạch log, số đo ghi `BENCHMARKS.md` |
+| P3 | Lưu `Career` (schema 3), tiếng xì, cửa hàng nâng cấp, kiểm giới hạn khối lượng đơn 2–3, tiếng Việt | Test Domain/EditMode cho từng mục |
+| P4 | Bóng đổ, mô hình đe/lò, miệng lò sáng, âm thanh thật, tầng chất lượng PC | FPS không tụt dưới ngân sách P2 |
+| P5 | Người dùng chơi bản .exe một vòng đủ và báo lại | Người dùng xác nhận |
+| P6 | Điện thoại: cảm ứng, layout dọc, safe area, tối ưu iOS/Android, thiết bị thật | Chỉ lên lịch sau P5 |
+
+Nhãn bằng chứng (không trộn): `Domain test` · `Editor` · `Windows build (máy này)` · `Windows máy người dùng` · `Unity Remote (iPhone)` · `iOS native` · `Android build` · `Android máy thật`. Hai nhãn cuối của iOS/Android vẫn là "chưa kiểm chứng".
+
+Đặt trước để P6 không phải làm lại: Domain không đổi; đầu vào qua `IPointerSource`; HUD tách lớp; `PlatformProfile` iOS/Android giữ nguyên.
+
+---
+
+# (Lịch sử) v2 — iPhone + Unity Remote
 
 Thay thế kế hoạch cũ (hướng Android-first). Ngày lập: 2026-11-17.
 Nguồn gốc: `TECHNICAL_DESIGN.md` (thiết kế V3) và `CLAUDE_CODE_START.md`.
