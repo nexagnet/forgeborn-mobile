@@ -17,7 +17,7 @@ Chốt với người dùng: mục tiêu là **bản Windows chơi được, ch�
 | GĐ | Nội dung | Cổng | Trạng thái |
 |---|---|---|---|
 | P0 | Chuyển hướng: tài liệu, build target Windows64, không gian màu Linear | `dotnet test` 63/63, EditMode 33/33 | **Xong** (commit `98bf216`, `49afe19`) |
-| P0.5 | Bộ công cụ và thiết kế: tham số `-screenshot`/`-benchmark`, script Blender, thiết kế UI ngang + art bible + danh sách âm thanh + bảng cân bằng, bộ mô hình 3D đầu tiên | Tài liệu nằm trong `GAME_DESIGN.md`, mô hình nhập được vào Unity | Đang làm |
+| P0.5 | Bộ công cụ và thiết kế: tham số `-screenshot`/`-benchmark`, script Blender, thiết kế UI ngang + art bible + danh sách âm thanh + bảng cân bằng, bộ mô hình 3D đầu tiên | Tài liệu nằm trong `GAME_DESIGN.md`, mô hình nhập được vào Unity | Đang làm: thiết kế (§13–§16), script Blender, 5 FBX và `PlayerAutomation.cs` đã có; chưa kiểm nhập FBX vào Unity và chưa chạy thử `-screenshot`/`-benchmark` vì Unity đang mất giấy phép |
 | P1 | `IPointerSource` (chuột; cảm ứng cắm sau), phím tắt, UI ngang 1920x1080, menu/tạm dừng/cài đặt, tách HUD khỏi `ForgeSandbox` | Ảnh render 1920x1080 và 1280x720, "INPUT PATH OK" | Chưa |
 | P2 | `ForgeBornBuild.BuildWindows`, chạy .exe, đọc `Player.log`, đo FPS trên iGPU | .exe chạy sạch log, số đo vào `BENCHMARKS.md` | Chưa |
 | P3 | Lưu `Career` (schema 3), tiếng xì, cửa hàng nâng cấp, kiểm giới hạn khối lượng đơn 2–3, tiếng Việt | Test Domain/EditMode cho từng mục | Chưa |
@@ -62,7 +62,7 @@ Chốt với người dùng: mục tiêu là **bản Windows chơi được, ch�
 2. Tiếng xì khi tôi (hơi nước đã có).
 3. Cửa hàng nâng cấp (lò nhanh, mặt búa nhọn, bể dầu, bánh mài mịn), mở sau đơn đầu.
 4. Test Domain mô phỏng mài để kiểm tra giới hạn 1500 g / 1450 g của đơn 2 và 3 có đạt được; chỉnh số kinh tế.
-5. Tiếng Việt: đưa chuỗi cứng ra bảng chuỗi, test hiển thị.
+5. Tiếng Việt: toàn bộ chuỗi UI và hướng dẫn trong mã hiện là **tiếng Anh**; đưa ra bảng chuỗi, dịch sang tiếng Việt, test hiển thị (font mặc định đã đủ ký tự có dấu).
 
 Dùng TDD cho phần Domain.
 

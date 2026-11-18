@@ -116,3 +116,99 @@ Mọi con số dưới đây là **giả định để có cái điều chỉnh*
 3. Rèn: sandbox hiện tại; góc trên hiện spec rút gọn và tiến độ từng tiêu chí.
 4. Giao hàng: báo cáo có lý do từng điểm, hạng, tiền thưởng; nút "Thử lại" và "Đơn tiếp".
 5. Cửa hàng nâng cấp: chỉ mở sau đơn đầu.
+
+---
+
+# Thiết kế cho bản PC (P0.5, bản nháp đầu tiên)
+
+Các mục §13–§16 là thiết kế cho bản Windows. Chúng thay cho §3, §4 và §12 khi làm P1. Mọi con số là giả định để chỉnh sau khi chơi thử (P5), không phải kết quả đo.
+
+## 13. Bố cục UI ngang 16:9
+
+Khung tham chiếu 1920x1080, co giãn theo `CanvasScaler` (ScaleWithScreenSize). Lề an toàn 3% mỗi cạnh. Chữ nhỏ nhất 16 px ở 1080p. Hỗ trợ 16:10 (co khung giữa) và ultrawide (chỉ nới hai bên, không kéo giãn lưỡi).
+
+```
++--------------------------------------------------------------------------+
+| ĐƠN: tên, khách, tiêu chí rút gọn            Tiền        [Cài đặt] [Esc] |  thanh trên (72 px)
++----------+------------------------------------------+--------------------+
+| TRẠM     |                                          | THÔNG SỐ           |
+| 1 Lò     |                                          | Khối lượng  g      |
+| 2 Đe     |          LƯỠI Ở GIỮA (khu thao tác)      | Nhiệt độ    °C     |
+| 3 Mài    |                                          | Độ cứng     HRC    |
+| 4 Tôi    |                                          | Áp lực      N      |
+| 5 Ram    |                                          | Tốc độ  x1..x600   |
+| 6 Kiểm   |                                          | Báo cáo (có lý do) |
++----------+------------------------------------------+--------------------+
+| Gợi ý thao tác theo trạm              [Nhận đơn]  [Giao hàng]  [Zoom]    |  thanh dưới (88 px)
++--------------------------------------------------------------------------+
+```
+
+| Màn hình | Nội dung chính | Điều hướng |
+|---|---|---|
+| Menu chính | Tiếp tục, Chơi mới, Cài đặt, Thoát | Chuột, Enter/Esc |
+| Xưởng | Bố cục ở trên; lưỡi ở giữa, trạm bên trái, thông số bên phải | Phím 1–6 đổi trạm |
+| Bảng đơn | Danh sách đơn: khách, tiêu chí, tiền thưởng, giới hạn khối lượng | Chọn một đơn để nhận phôi |
+| Giao hàng | Hạng, điểm từng tiêu chí kèm lý do, tiền thưởng trừ chi phí phôi | Nút "Thử lại", "Đơn tiếp" |
+| Cửa hàng | Nâng cấp xưởng, mở sau đơn đầu | Quay lại bảng đơn |
+| Cài đặt | Độ phân giải, toàn màn hình, tầng chất lượng, âm lượng, phím | Lưu khi thoát |
+| Tạm dừng | Tiếp tục, Cài đặt, Về menu | Esc |
+
+Điều khiển chuột và phím (thay cho cảm ứng):
+
+| Việc | Chuột/phím |
+|---|---|
+| Mài | Giữ chuột trái và kéo trên lưỡi |
+| Búa | Nhấp chuột trái; giữ lâu hơn để tăng năng lượng |
+| Xoay/zoom lưỡi (kiểm tra) | Chuột phải kéo để xoay, con lăn để zoom |
+| Áp lực mài | `[` giảm, `]` tăng (nấc 5 N), thanh trên màn hình |
+| Tốc độ thời gian | `-` / `=` (x1, x10, x60, x600) |
+| Đổi trạm | `1`–`6`, hoặc `Tab` sang trạm kế |
+| Tạm dừng | `Esc` |
+
+## 14. Art bible
+
+Xưởng rèn tối, ánh lửa ấm là nguồn sáng chính, thép là ngôi sao. Không gian màu Linear; bloom và ACES ở tầng Medium trở lên.
+
+| Vai trò | Giá trị gợi ý |
+|---|---|
+| Nền xưởng | `#120C0A` (nâu đen ấm) |
+| Gạch/lò | `#3A1F18` đến `#6B3326` |
+| Thép nguội | `#6B7078`, độ nhám 0.35–0.5 |
+| Lưỡi nóng | dải `#7A1A0E` (đỏ thẫm) → `#FF7A1A` (cam) → `#FFC35A` (vàng); phát sáng HDR |
+| Ánh sáng chính | ấm, từ lò bên trái; ánh phụ lạnh `#7FA6C8` từ cửa sổ bên phải (HDRI `boiler_room`) |
+| Nền bảng UI | `#1A1412` độ mờ 85% |
+| Chữ | `#EDE3D6`; tiêu đề nhấn `#F2A33A`; cảnh báo `#D9503B`; đạt `#6FB36B` |
+
+Quy tắc: tương phản chữ/nền tối thiểu 4.5:1; không dùng màu làm tín hiệu duy nhất (kèm biểu tượng hoặc chữ) để người mù màu vẫn đọc được độ nóng; mô hình tự làm trong Blender (đe, lò, bể tôi, bánh mài, chuôi) dùng chung bảng màu này; ảnh chụp từng bản dựng so với bảng này trước khi gọi là xong.
+
+## 15. Danh sách âm thanh
+
+Hiện có 1 mẫu thật (tiếng búa); phần còn lại là thuật toán. Nguồn mới phải là tự tạo (REAPER, ffmpeg) hoặc CC0, ghi vào `CREDITS.md`.
+
+| Âm thanh | Hiện trạng | Kế hoạch |
+|---|---|---|
+| Mài (vòng lặp, cao độ và âm lượng theo áp lực và tốc độ) | Thuật toán | Giữ cơ chế, thay chất liệu bằng mẫu thật |
+| Búa (3 biến thể theo nhiệt độ lưỡi) | 1 mẫu thật | Thêm 2 biến thể; nguội thì tiếng "chát" |
+| Xì khi tôi (nước, dầu) | Chưa có | Làm ở P3 (hơi nước hình ảnh đã có) |
+| Lửa lò (nền, to dần khi lưỡi trong lò) | Chưa có | P4 |
+| Không khí xưởng (nền nhẹ) | Chưa có | P4 |
+| Giao diện (nhấp, xác nhận, lỗi) | Chưa có | P1–P4 |
+| Nhạc nền | Chưa có | Tùy chọn, sau P5 |
+
+Định dạng: WAV 44.1 kHz; âm lượng mặc định thấp, thanh trượt riêng cho hiệu ứng và nhạc ở màn Cài đặt.
+
+## 16. Cân bằng kinh tế và độ khó (số hiện tại, trong `Orders.cs`)
+
+| Đơn | Khách | Phôi | Tiền cơ bản | Điểm tối thiểu | Giới hạn khối lượng | Tiêu chí chính |
+|---|---|---|---|---|---|---|
+| o1 | Lính làng | 20 | 100 | 55 | không | góc 25° ±15°, 55 HRC ±15, thẳng ≤ 6 mm |
+| o2 | Lái buôn | 30 | 180 | 65 | 1500 g | góc 20° ±10°, 58 HRC ±12, thẳng ≤ 4 mm, xoắn ≤ 3° |
+| o3 | Kiếm sĩ | 50 | 320 | 75 | 1450 g | góc 16° ±6°, 60 HRC ±8, thẳng ≤ 3 mm, xoắn ≤ 2°, cân bằng 0.15 |
+
+Tiền thưởng = tiền cơ bản × hệ số hạng (S 1.6, A 1.3, B 1.0, C 0.7, D 0.4, F 0), trừ chi phí phôi.
+
+Việc cần kiểm trong P3, theo thứ tự:
+1. Mô phỏng mài trong Domain để biết giới hạn 1500 g và 1450 g có đạt được không (hiện chưa kiểm).
+2. Đo thời gian chơi một đơn bằng người chơi thật ở P5; mục tiêu 8–15 phút.
+3. Đường cong: đơn 2 và 3 chỉ cần kỹ năng cao hơn, không cần cày tiền; nâng cấp mở thêm khả năng (§11).
+4. Viết lại hướng dẫn 13 bước cho chuột/phím và dịch sang tiếng Việt: lời hướng dẫn hiện là **tiếng Anh**, nói "Tap" (chạm) ở nhiều bước; mọi chuỗi UI trong mã cũng là tiếng Anh.
