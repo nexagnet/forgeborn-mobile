@@ -197,6 +197,7 @@ namespace ForgeBorn.UnityLayer
             if (_initialized) return;
             _initialized = true;
             _settings = GameSettings.Load();
+            if (Application.isPlaying) Loc.Current = _settings.ResolveLanguage();
             _persistCareer = !Application.isBatchMode && !AutomationRequested() && Application.isPlaying;
             if (_persistCareer) LoadCareer();
             _profile = PlatformProfile.Current;
@@ -480,7 +481,7 @@ namespace ForgeBorn.UnityLayer
             }
             ForgeEnv? env = DesktopKeys.EnvFor(s);
             if (env.HasValue) _env = env.Value;
-            _status = "station " + ((int)s + 1) + ": " + s;
+            _status = Loc.F("station {0}: {1}", (int)s + 1, Loc.T(s.ToString()));
         }
 
         private void Update()
@@ -581,12 +582,12 @@ namespace ForgeBorn.UnityLayer
                 _sw.Restart();
                 GrindResult res = _session.ApplyGrind(cmd);
                 _sw.Stop();
-                if (!res.Accepted) _status = "rejected: " + res.Reason;
+                if (!res.Accepted) _status = Loc.F("rejected: {0}", res.Reason);
                 else
                 {
                     if (res.LastStation >= 0) _builder.Rebuild(res.FirstStation, res.LastStation);
                     contact = res.ContactSubsteps > 0;
-                    _status = contact ? "grind " + SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2) + " ms" : "no contact";
+                    _status = contact ? Loc.F("grind {0} ms", SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2)) : Loc.T("no contact");
                 }
             }
             _prev = cur;
@@ -629,8 +630,8 @@ namespace ForgeBorn.UnityLayer
             _sw.Stop();
             LastHammer = res;
 
-            if (!res.Accepted) { _status = "rejected: " + res.Reason; return; }
-            if (!res.Hit) { _status = "missed the blade"; return; }
+            if (!res.Accepted) { _status = Loc.F("rejected: {0}", res.Reason); return; }
+            if (!res.Hit) { _status = Loc.T("missed the blade"); return; }
             if (res.StationsTouched > 0 && !res.Cold) _hammerHits++;
 
             if (res.StationsTouched > 0)
@@ -652,9 +653,9 @@ namespace ForgeBorn.UnityLayer
             }
 
             string temp = SandboxRules.F(res.HitTempK - 273.15, 0) + " C";
-            if (res.StationsTouched == 0) _status = "hammer: no deformation (" + temp + ")";
-            else if (res.Cold) _status = "COLD hammering at " + temp + ": dent " + SandboxRules.F(res.DepthM * 1000.0, 2) + " mm, crack risk +" + SandboxRules.F(res.DamageAdded, 2);
-            else _status = "hammer at " + temp + ": dent " + SandboxRules.F(res.DepthM * 1000.0, 2) + " mm, " + SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2) + " ms";
+            if (res.StationsTouched == 0) _status = Loc.F("hammer: no deformation ({0})", temp);
+            else if (res.Cold) _status = Loc.F("COLD hammering at {0}: dent {1} mm, crack risk +{2}", temp, SandboxRules.F(res.DepthM * 1000.0, 2), SandboxRules.F(res.DamageAdded, 2));
+            else _status = Loc.F("hammer at {0}: dent {1} mm, {2} ms", temp, SandboxRules.F(res.DepthM * 1000.0, 2), SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2));
         }
 
         // ---------------------------------------------------------------- inspect
@@ -687,11 +688,11 @@ namespace ForgeBorn.UnityLayer
             // Quenches need fine steps (the cooling rate at the nose decides hardness); air/oven/furnace tolerate coarse ones.
             _session.Thermal.StepsPerCommand = (_env == ForgeEnv.Water || _env == ForgeEnv.Oil) ? 2000.0 : 500.0;
             ThermalResult r = _session.ApplyThermal(new ThermalCommand(0, env, dt));
-            if (!r.Accepted) { _status = "thermal rejected: " + r.Reason; return; }
+            if (!r.Accepted) { _status = Loc.F("thermal rejected: {0}", r.Reason); return; }
             _builder.RefreshState();
             if (r.NewlyCrackedStations > 0)
             {
-                _status = "CRACKED during " + env.Id + "!";
+                _status = Loc.F("CRACKED during {0}!", env.Id);
                 _haptics.Impact(1f);
             }
         }
@@ -750,34 +751,34 @@ namespace ForgeBorn.UnityLayer
             int row = 0;
             Vector2 ColMin(int r) { return new Vector2(colX0, top - r * rowStep - rowH); }
             Vector2 ColMax(int r) { return new Vector2(colX1, top - r * rowStep); }
-            _toolLabel = MakeButton(safe, "GRIND", ColMin(row), ColMax(row), CycleTool); row++;
-            _optionLabel = MakeButton(safe, "Wheel", ColMin(row), ColMax(row), CycleOption); row++;
+            _toolLabel = MakeButton(safe, Loc.T("GRIND"), ColMin(row), ColMax(row), CycleTool); row++;
+            _optionLabel = MakeButton(safe, Loc.T("Wheel"), ColMin(row), ColMax(row), CycleOption); row++;
             _envLabels = new Text[5];
             string[] names = { "Air", "Furnace", "Water", "Oil", "Oven" };
             for (int i = 0; i < 5; i++)
             {
                 int idx = i;
-                _envLabels[i] = MakeButton(safe, names[i], ColMin(row), ColMax(row), () => SelectEnv(idx, names[idx]));
+                _envLabels[i] = MakeButton(safe, Loc.T(names[i]), ColMin(row), ColMax(row), () => SelectEnv(idx, names[idx]));
                 row++;
             }
-            MakeButton(safe, "Zoom", ColMin(row), ColMax(row), CycleZoom); row++;
-            MakeButton(safe, "Shop", ColMin(row), ColMax(row), OpenShop);
+            MakeButton(safe, Loc.T("Zoom"), ColMin(row), ColMax(row), CycleZoom); row++;
+            MakeButton(safe, Loc.T("Shop"), ColMin(row), ColMax(row), OpenShop);
 
             // Bottom bar, nine buttons across.
             const float barX0 = 0.135f, barW = 0.095f, barY0 = 0.01f, barY1 = 0.095f;
             int slot = 0;
             Vector2 BarMin() { return new Vector2(barX0 + slot * barW, barY0); }
             Vector2 BarMax() { return new Vector2(barX0 + (slot + 1) * barW, barY1); }
-            MakeButton(safe, "Press -", BarMin(), BarMax(), () => _pressureN = DesktopKeys.StepPressure(_pressureN, -2, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN)); slot++;
-            MakeButton(safe, "Press +", BarMin(), BarMax(), () => _pressureN = DesktopKeys.StepPressure(_pressureN, 2, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN)); slot++;
+            MakeButton(safe, Loc.T("Press -"), BarMin(), BarMax(), () => _pressureN = DesktopKeys.StepPressure(_pressureN, -2, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN)); slot++;
+            MakeButton(safe, Loc.T("Press +"), BarMin(), BarMax(), () => _pressureN = DesktopKeys.StepPressure(_pressureN, 2, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN)); slot++;
             _speedLabel = MakeButton(safe, "x1", BarMin(), BarMax(), CycleSpeed); slot++;
             _speedBtn = _speedLabel;
-            _orderBtn = MakeButton(safe, "Order", BarMin(), BarMax(), CycleOrder); slot++;
-            _deliverBtn = MakeButton(safe, "Deliver", BarMin(), BarMax(), Deliver); slot++;
-            _reportBtn = MakeButton(safe, "Report", BarMin(), BarMax(), ToggleReport); slot++;
-            MakeButton(safe, "Guide", BarMin(), BarMax(), () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); }); slot++;
-            MakeButton(safe, "Save", BarMin(), BarMax(), Save); slot++;
-            MakeButton(safe, "Load", BarMin(), BarMax(), Load);
+            _orderBtn = MakeButton(safe, Loc.T("Order"), BarMin(), BarMax(), CycleOrder); slot++;
+            _deliverBtn = MakeButton(safe, Loc.T("Deliver"), BarMin(), BarMax(), Deliver); slot++;
+            _reportBtn = MakeButton(safe, Loc.T("Report"), BarMin(), BarMax(), ToggleReport); slot++;
+            MakeButton(safe, Loc.T("Guide"), BarMin(), BarMax(), () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); }); slot++;
+            MakeButton(safe, Loc.T("Save"), BarMin(), BarMax(), Save); slot++;
+            MakeButton(safe, Loc.T("Load"), BarMin(), BarMax(), Load);
             BuildTutorialPanel(safe);
 
             // Report panel (does not block the pointer): below the blade, between the station column and the readout.
@@ -818,8 +819,8 @@ namespace ForgeBorn.UnityLayer
             _tutWarn.color = new Color(1f, 0.4f, 0.3f);
 
             // Next and Skip live on the panel (buttons block touches only where they are).
-            _nextBtn = MakePanelButton(rt, "Next", 1f, () => _tutorial.Acknowledge());
-            MakePanelButton(rt, "Skip", 0f, () => { _tutorial.Skip(); RefreshHud(); });
+            _nextBtn = MakePanelButton(rt, Loc.T("Next"), 1f, () => _tutorial.Acknowledge());
+            MakePanelButton(rt, Loc.T("Skip"), 0f, () => { _tutorial.Skip(); RefreshHud(); });
         }
 
         private TutorialSnapshot MakeTutorialSnapshot()
@@ -873,9 +874,9 @@ namespace ForgeBorn.UnityLayer
             if (!show) return;
             TutorialStep st = _tutorial.Current;
             _tutStep.text = (_tutorial.Index + 1) + " / " + _tutorial.Count;
-            _tutTitle.text = st.Title;
-            _tutBody.text = st.Why + "\n" + st.Action;
-            _tutWarn.text = _tutorial.Warning(snap) ?? "";
+            _tutTitle.text = Loc.T(st.Title);
+            _tutBody.text = Loc.T(st.Why) + "\n" + Loc.T(st.Action);
+            _tutWarn.text = Loc.T(_tutorial.Warning(snap) ?? "");
             _nextBtn.transform.parent.gameObject.SetActive(st.NeedsAck);
             Text target = TargetLabel(st.Target);
             if (target != null && target.transform.parent.gameObject.activeSelf && st.Target != TutorialTarget.Next)
@@ -894,24 +895,24 @@ namespace ForgeBorn.UnityLayer
             int mid = p.StationCount / 2;
             double hrc = _session.Material.HardnessHrc(p.Martensite[mid], p.TemperP[mid]);
             double tmax = SandboxRules.MaxTempK(p);
-            string flag = SandboxRules.AnyCracked(p) ? "   CRACKED" : "";
-            _infoText.text = "Mass " + SandboxRules.F(mass, 3) + " kg   removed " + SandboxRules.F(removed * 1000.0, 1) + " g\n"
-                + "Temp " + SandboxRules.F(tmax - 273.15, 0) + " C   HRC " + SandboxRules.F(hrc, 0) + flag + "\n"
-                + (_tool == ToolMode.Hammer ? "Energy " : "Pressure ") + SandboxRules.F(_pressureN, 0) + (_tool == ToolMode.Hammer ? " J" : " N")
-                + "   " + _env + "  x" + SandboxRules.F(SandboxRules.TimeScales[_speedIndex], 0)
+            string flag = SandboxRules.AnyCracked(p) ? "   " + Loc.T("CRACKED") : "";
+            _infoText.text = Loc.T("Mass") + " " + SandboxRules.F(mass, 3) + " kg   " + Loc.T("removed") + " " + SandboxRules.F(removed * 1000.0, 1) + " g\n"
+                + Loc.T("Temp") + " " + SandboxRules.F(tmax - 273.15, 0) + " C   HRC " + SandboxRules.F(hrc, 0) + flag + "\n"
+                + Loc.T(_tool == ToolMode.Hammer ? "Energy" : "Pressure") + " " + SandboxRules.F(_pressureN, 0) + (_tool == ToolMode.Hammer ? " J" : " N")
+                + "   " + Loc.T(_env.ToString()) + "  x" + SandboxRules.F(SandboxRules.TimeScales[_speedIndex], 0)
                 + (_profile.Simulated ? "   [" + _profile.Name + "]" : "");
             _statusText.text = _status;
-            _toolLabel.text = _tool.ToString().ToUpperInvariant();
-            _optionLabel.text = _tool == ToolMode.Hammer ? _faces[_faceIndex].Id.Replace("hammer_", "").Replace("_v1", "")
-                : _tool == ToolMode.Grind ? _wheels[_wheelIndex].Id.Replace("wheel_", "").Replace("_v1", "") : "-";
+            _toolLabel.text = Loc.T(_tool.ToString().ToUpperInvariant());
+            _optionLabel.text = _tool == ToolMode.Hammer ? Loc.T(_faces[_faceIndex].Id.Replace("hammer_", "").Replace("_v1", ""))
+                : _tool == ToolMode.Grind ? Loc.T(_wheels[_wheelIndex].Id.Replace("wheel_", "").Replace("_v1", "")) : "-";
             _speedLabel.text = "x" + SandboxRules.F(SandboxRules.TimeScales[_speedIndex], 0);
             for (int i = 0; i < _envLabels.Length; i++)
                 _envLabels[i].color = (int)_env == i ? new Color(1f, 0.7f, 0.25f) : Color.white;
             if (_showReport)
                 _reportText.text = (_resultText != null ? _resultText + "\n\n" : "")
                     + SandboxRules.FormatReport(_session.Evaluate(_order != null ? _order.Spec : null));
-            _infoText.text += "\n" + (_order == null ? "Free play" : "Order: " + _order.Title + (_order.MaxMassKg < double.MaxValue ? " (max " + SandboxRules.F(_order.MaxMassKg * 1000.0, 0) + " g)" : ""))
-                + "   Money " + _career.Money;
+            _infoText.text += "\n" + (_order == null ? Loc.T("Free play") : Loc.T("Order:") + " " + Loc.T(_order.Title) + (_order.MaxMassKg < double.MaxValue ? " (" + Loc.T("max") + " " + SandboxRules.F(_order.MaxMassKg * 1000.0, 0) + " g)" : ""))
+                + "   " + Loc.T("Money") + " " + _career.Money;
             UpdateTutorial();
         }
 
@@ -942,15 +943,15 @@ namespace ForgeBorn.UnityLayer
 
         private void SelectEnv(int idx, string name)
         {
-            if ((ForgeEnv)idx == ForgeEnv.Oil && !_career.Owns(Upgrade.OilBath)) { _status = "Oil bath is locked: buy it in the Shop (after your first delivery)."; return; }
+            if ((ForgeEnv)idx == ForgeEnv.Oil && !_career.Owns(Upgrade.OilBath)) { _status = Loc.T("Oil bath is locked: buy it in the Shop (after your first delivery)."); return; }
             _env = (ForgeEnv)idx;
-            _status = "environment: " + name;
+            _status = Loc.F("environment: {0}", Loc.T(name));
         }
 
         private void OpenShop()
         {
             if (_paused) return;
-            if (!_career.ShopOpen) { _status = "The shop opens after your first delivered order."; return; }
+            if (!_career.ShopOpen) { _status = Loc.T("The shop opens after your first delivered order."); return; }
             _paused = true;
             Time.timeScale = 0f;
             if (_audio != null) { _audio.SetGrind(0f, 0f); _audio.SetHiss(0f); }
@@ -996,27 +997,27 @@ namespace ForgeBorn.UnityLayer
             if (_order == null) { NewBlank(); return; }
             NewWeapon();
             _env = ForgeEnv.Air;
-            _status = "Order: " + _order.Client + ". " + _order.Brief;
-            _resultText = "ORDER " + _order.Title + " for " + _order.Client + "\n" + _order.Brief + "\nPays up to " + (long)System.Math.Round(_order.BasePay * OrderBook.GradeFactor("S"))
-                + ", blank costs " + _order.BlankCost + ". Needs score " + SandboxRules.F(_order.Spec.PassScore, 0) + "+.";
+            _status = Loc.F("Order: {0}. {1}", Loc.T(_order.Client), Loc.T(_order.Brief));
+            _resultText = Loc.F("ORDER {0} for {1}\n{2}\nPays up to {3}, blank costs {4}. Needs score {5}+.", Loc.T(_order.Title), Loc.T(_order.Client), Loc.T(_order.Brief),
+                (long)System.Math.Round(_order.BasePay * OrderBook.GradeFactor("S")), _order.BlankCost, SandboxRules.F(_order.Spec.PassScore, 0));
             if (!_showReport) ToggleReport();
         }
 
         /// <summary>Hands the blade to the client: scored against the order, paid or rejected, with reasons.</summary>
         private void Deliver()
         {
-            if (_order == null) { _status = "Pick an order first (Order button)."; return; }
-            if (_delivered) { _status = "Already delivered. Press Order for the next one."; return; }
+            if (_order == null) { _status = Loc.T("Pick an order first (Order button)."); return; }
+            if (_delivered) { _status = Loc.T("Already delivered. Press Order for the next one."); return; }
             BladeReport rep = _session.Evaluate(_order.Spec);
             OrderResult res = OrderBook.Settle(_order, rep);
             _career.Apply(_order, res);
             SaveCareer();
             _delivered = true;
             var sb = new System.Text.StringBuilder();
-            sb.Append(res.Delivered ? "DELIVERED  grade " + res.Grade + "  paid " + res.Payout + "  (net " + res.Net + ")" : "NOT ACCEPTED  net " + res.Net);
-            foreach (string reason in res.Reasons) sb.Append("\n- ").Append(reason);
+            sb.Append(res.Delivered ? Loc.F("DELIVERED  grade {0}  paid {1}  (net {2})", res.Grade, res.Payout, res.Net) : Loc.F("NOT ACCEPTED  net {0}", res.Net));
+            foreach (ReasonPart part in res.Parts) sb.Append("\n- ").Append(Loc.F(part.Template, (object[])part.Args));
             _resultText = sb.ToString();
-            _status = res.Delivered ? "Delivered: grade " + res.Grade : "Rejected";
+            _status = res.Delivered ? Loc.F("Delivered: grade {0}", res.Grade) : Loc.T("Rejected");
             if (!_showReport) ToggleReport();
             _hudTimer = 0f;
         }
@@ -1036,7 +1037,7 @@ namespace ForgeBorn.UnityLayer
             _blankIndex = (_blankIndex + 1) % 2;
             NewWeapon();
             _env = ForgeEnv.Air;
-            _status = _blankIndex == 0 ? "new tapered blank" : "new beveled bar";
+            _status = Loc.T(_blankIndex == 0 ? "new tapered blank" : "new beveled bar");
         }
 
         private void SaveCareer()
@@ -1063,9 +1064,9 @@ namespace ForgeBorn.UnityLayer
             try
             {
                 WeaponFile.SaveAtomic(SavePath, _session.Capture());
-                _status = "saved";
+                _status = Loc.T("saved");
             }
-            catch (System.Exception e) { _status = "save failed: " + e.Message; }
+            catch (System.Exception e) { _status = Loc.F("save failed: {0}", e.Message); }
         }
 
         private void Load()
@@ -1076,9 +1077,9 @@ namespace ForgeBorn.UnityLayer
             {
                 AttachSession(ForgeSession.FromSnapshot(snap));
                 _startMassKg = _session.MassKg;
-                _status = "loaded";
+                _status = Loc.T("loaded");
             }
-            else _status = "load failed: " + err;
+            else _status = Loc.F("load failed: {0}", err);
         }
     }
 }

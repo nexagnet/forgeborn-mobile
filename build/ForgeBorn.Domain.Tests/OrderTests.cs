@@ -154,5 +154,19 @@ namespace ForgeBorn.Domain.Tests
             Assert.Equal("B", c.BestGrade("o1"));
             Assert.Null(c.BestGrade("o2"));
         }
+
+        [Fact]
+        public void ReasonParts_FormatToExactlyTheEnglishReasons_InTheSameOrder()
+        {
+            Order o = OrderBook.ById("o1");
+            BladeReport r = Good("D", 40);
+            r.MeanHrc = 40; r.HardnessScore = 0.1; r.StraightnessDevM = 0.01; r.StraightnessScore = 0.2; r.HasBevel = false;
+            OrderResult res = OrderBook.Settle(o, r);
+            Assert.True(res.Reasons.Count >= 3);
+            Assert.Equal(res.Reasons.Count, res.Parts.Count);
+            for (int i = 0; i < res.Reasons.Count; i++)
+                Assert.Equal(res.Reasons[i], string.Format(System.Globalization.CultureInfo.InvariantCulture, res.Parts[i].Template, (object[])res.Parts[i].Args));
+            Assert.Contains(res.Parts, p => p.Template.StartsWith("Hardness is {0}"));
+        }
 }
 }

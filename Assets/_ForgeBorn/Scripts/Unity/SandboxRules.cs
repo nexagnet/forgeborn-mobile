@@ -88,20 +88,18 @@ namespace ForgeBorn.UnityLayer
         public static string FormatReport(BladeReport r)
         {
             var sb = new StringBuilder();
-            sb.Append("Grade ").Append(r.Grade).Append("   Score ").Append(F(r.Overall, 1)).Append(r.Pass ? "   PASS" : "   not passed").Append('\n');
-            if (r.Broken) sb.Append("BROKEN: blade is cut through\n");
-            if (r.CrackedStations > 0) sb.Append("CRACKED at ").Append(r.CrackedStations).Append(" stations\n");
-            sb.Append("Mass ").Append(F(r.MassKg, 3)).Append(" kg   Length ").Append(F(r.LengthM * 1000.0, 0)).Append(" mm\n");
-            sb.Append("Balance ").Append(F(r.BalanceFrac * 100.0, 0)).Append("% from tang  (score ").Append(F(r.BalanceScore * 100.0, 0)).Append(")\n");
-            sb.Append("Straight ").Append(F(r.StraightnessDevM * 1000.0, 2)).Append(" mm dev  (").Append(F(r.StraightnessScore * 100.0, 0)).Append(")\n");
-            sb.Append("Twist ").Append(F(r.TwistRangeDeg, 2)).Append(" deg  (").Append(F(r.TwistScore * 100.0, 0)).Append(")\n");
-            sb.Append("Symmetry ").Append(F(r.SymmetryScore * 100.0, 0)).Append("\n");
-            if (r.HasBevel)
-                sb.Append("Edge ").Append(F(r.EdgeAngleDeg, 1)).Append(" deg, ").Append(F(r.EdgeThickness05M * 1000.0, 2)).Append(" mm at 0.5 mm  (").Append(F(r.EdgeScore * 100.0, 0)).Append(")\n");
-            else
-                sb.Append("Edge: no bevel ground yet\n");
-            sb.Append("Hardness ").Append(F(r.MeanHrc, 0)).Append(" HRC  (").Append(F(r.HardnessScore * 100.0, 0)).Append(")\n");
-            sb.Append("Toughness ").Append(F(r.ToughnessScore * 100.0, 0));
+            sb.Append(Loc.F("Grade {0}   Score {1}   {2}", r.Grade, F(r.Overall, 1), Loc.T(r.Pass ? "PASS" : "not passed"))).Append('\n');
+            if (r.Broken) sb.Append(Loc.T("BROKEN: blade is cut through")).Append('\n');
+            if (r.CrackedStations > 0) sb.Append(Loc.F("CRACKED at {0} stations", r.CrackedStations)).Append('\n');
+            sb.Append(Loc.F("Mass {0} kg   Length {1} mm", F(r.MassKg, 3), F(r.LengthM * 1000.0, 0))).Append('\n');
+            sb.Append(Loc.F("Balance {0}% from tang  (score {1})", F(r.BalanceFrac * 100.0, 0), F(r.BalanceScore * 100.0, 0))).Append('\n');
+            sb.Append(Loc.F("Straight {0} mm dev  ({1})", F(r.StraightnessDevM * 1000.0, 2), F(r.StraightnessScore * 100.0, 0))).Append('\n');
+            sb.Append(Loc.F("Twist {0} deg  ({1})", F(r.TwistRangeDeg, 2), F(r.TwistScore * 100.0, 0))).Append('\n');
+            sb.Append(Loc.F("Symmetry {0}", F(r.SymmetryScore * 100.0, 0))).Append('\n');
+            if (r.HasBevel) sb.Append(Loc.F("Edge {0} deg, {1} mm at 0.5 mm  ({2})", F(r.EdgeAngleDeg, 1), F(r.EdgeThickness05M * 1000.0, 2), F(r.EdgeScore * 100.0, 0))).Append('\n');
+            else sb.Append(Loc.T("Edge: no bevel ground yet")).Append('\n');
+            sb.Append(Loc.F("Hardness {0} HRC  ({1})", F(r.MeanHrc, 0), F(r.HardnessScore * 100.0, 0))).Append('\n');
+            sb.Append(Loc.F("Toughness {0}", F(r.ToughnessScore * 100.0, 0)));
             return sb.ToString();
         }
     }

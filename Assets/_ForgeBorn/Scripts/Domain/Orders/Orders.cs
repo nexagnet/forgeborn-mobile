@@ -30,6 +30,23 @@ namespace ForgeBorn.Domain.Orders
         public long Net;
         /// <summary>Plain reasons, worst first. Also filled for accepted blades that lost points.</summary>
         public List<string> Reasons = new List<string>();
+        /// <summary>The same reasons as template + arguments, so a front end can translate the template and keep the numbers. Parts[i] formats to Reasons[i].</summary>
+        public List<ReasonPart> Parts = new List<ReasonPart>();
+
+        internal void Add(string template, params string[] args) { Insert(Reasons.Count, template, args); }
+
+        internal void Insert(int index, string template, params string[] args)
+        {
+            Parts.Insert(index, new ReasonPart(template, args));
+            Reasons.Insert(index, string.Format(System.Globalization.CultureInfo.InvariantCulture, template, (object[])args));
+        }
+    }
+
+    public sealed class ReasonPart
+    {
+        public readonly string Template;
+        public readonly string[] Args;
+        public ReasonPart(string template, string[] args) { Template = template; Args = args; }
     }
 
     public static class OrderBook
@@ -85,19 +102,19 @@ namespace ForgeBorn.Domain.Orders
         {
             var res = new OrderResult { Grade = r.Grade, Overall = r.Overall, Net = -order.BlankCost };
 
-            if (r.Broken) { res.Reasons.Add("The blade is cut through: lost."); return res; }
-            if (r.CrackedStations > 0) { res.Reasons.Add("The blade cracked (" + r.CrackedStations + " stations): lost. Quench gentler or temper sooner."); return res; }
+            if (r.Broken) { res.Add("The blade is cut through: lost."); return res; }
+            if (r.CrackedStations > 0) { res.Add("The blade cracked ({0} stations): lost. Quench gentler or temper sooner.", r.CrackedStations.ToString()); return res; }
 
-            AddWeakPoints(order, r, res.Reasons);
+            AddWeakPoints(order, r, res);
 
             if (r.MassKg > order.MaxMassKg)
             {
-                res.Reasons.Insert(0, "Too heavy: " + (r.MassKg * 1000.0).ToString("F0") + " g, the client wants at most " + (order.MaxMassKg * 1000.0).ToString("F0") + " g.");
+                res.Insert(0, "Too heavy: {0} g, the client wants at most {1} g.", Num(r.MassKg * 1000.0, 0), Num(order.MaxMassKg * 1000.0, 0));
                 return res;
             }
             if (r.Overall < order.Spec.PassScore)
             {
-                res.Reasons.Insert(0, "Score " + r.Overall.ToString("F0") + " is below the " + order.Spec.PassScore.ToString("F0") + " this client requires.");
+                res.Insert(0, "Score {0} is below the {1} this client requires.", Num(r.Overall, 0), Num(order.Spec.PassScore, 0));
                 return res;
             }
 
@@ -107,22 +124,25 @@ namespace ForgeBorn.Domain.Orders
             return res;
         }
 
-        private static void AddWeakPoints(Order o, BladeReport r, List<string> reasons)
+        private static string Num(double v, int decimals) { return v.ToString("F" + decimals, System.Globalization.CultureInfo.InvariantCulture); }
+
+        private static void AddWeakPoints(Order o, BladeReport r, OrderResult res)
         {
-            var list = new List<KeyValuePair<double, string>>();
-            void Add(double score, string text) { if (score < 0.6) list.Add(new KeyValuePair<double, string>(score, text)); }
+            var list = new List<KeyValuePair<double, ReasonPart>>();
+            void Add(double score, string template, params string[] args) { if (score < 0.6) list.Add(new KeyValuePair<double, ReasonPart>(score, new ReasonPart(template, args))); }
 
             if (!r.HasBevel) Add(0.0, "No edge ground: grind a bevel on the +Y side.");
-            else Add(r.EdgeScore, "Edge is " + r.EdgeAngleDeg.ToString("F1") + " deg and " + (r.EdgeThickness05M * 1000.0).ToString("F2") + " mm thick 0.5 mm behind the tip; the client wants " + o.Spec.TargetEdgeAngleDeg.ToString("F0") + " deg and thin.");
-            Add(r.HardnessScore, "Hardness is " + r.MeanHrc.ToString("F0") + " HRC, the client wants about " + o.Spec.TargetEdgeHrc.ToString("F0") + ".");
-            Add(r.StraightnessScore, "Bent by " + (r.StraightnessDevM * 1000.0).ToString("F1") + " mm along its length.");
-            Add(r.TwistScore, "Twisted by " + r.TwistRangeDeg.ToString("F1") + " deg.");
+            else Add(r.EdgeScore, "Edge is {0} deg and {1} mm thick 0.5 mm behind the tip; the client wants {2} deg and thin.",
+                Num(r.EdgeAngleDeg, 1), Num(r.EdgeThickness05M * 1000.0, 2), Num(o.Spec.TargetEdgeAngleDeg, 0));
+            Add(r.HardnessScore, "Hardness is {0} HRC, the client wants about {1}.", Num(r.MeanHrc, 0), Num(o.Spec.TargetEdgeHrc, 0));
+            Add(r.StraightnessScore, "Bent by {0} mm along its length.", Num(r.StraightnessDevM * 1000.0, 1));
+            Add(r.TwistScore, "Twisted by {0} deg.", Num(r.TwistRangeDeg, 1));
             Add(r.SymmetryScore, "Uneven faces: one side is thicker.");
             Add(r.ToughnessScore, "Too brittle: temper it to gain toughness.");
-            Add(r.BalanceScore, "Balance point is " + (r.BalanceFrac * 100.0).ToString("F0") + "% from the tang, the client wants about " + (o.Spec.TargetBalanceFrac * 100.0).ToString("F0") + "%.");
+            Add(r.BalanceScore, "Balance point is {0}% from the tang, the client wants about {1}%.", Num(r.BalanceFrac * 100.0, 0), Num(o.Spec.TargetBalanceFrac * 100.0, 0));
 
             list.Sort((a, b) => a.Key.CompareTo(b.Key));
-            foreach (var kv in list) reasons.Add(kv.Value);
+            foreach (var kv in list) res.Add(kv.Value.Template, kv.Value.Args);
         }
     }
 
