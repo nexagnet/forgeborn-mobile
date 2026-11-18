@@ -189,7 +189,9 @@ namespace ForgeBorn.UnityLayer
             _initialized = true;
             _profile = PlatformProfile.Current;
             Application.targetFrameRate = _profile.TargetFps;
+#if UNITY_IOS || UNITY_ANDROID
             Screen.orientation = ScreenOrientation.Portrait;
+#endif
             BuildScene();
             NewWeapon();
             BuildEffects();
@@ -347,18 +349,15 @@ namespace ForgeBorn.UnityLayer
             }
         }
 
-        private static bool TryGetPointer(out Vector2 pos, out int fingerId)
+        private readonly IPointerSource _pointer = CompositePointerSource.Default();
+
+        private bool TryGetPointer(out Vector2 pos, out int fingerId)
         {
-            if (Input.touchCount > 0)
-            {
-                Touch t = Input.GetTouch(0);
-                pos = t.position;
-                fingerId = t.fingerId;
-                return t.phase != TouchPhase.Ended && t.phase != TouchPhase.Canceled;
-            }
-            pos = Input.mousePosition;
-            fingerId = -1;
-            return Input.GetMouseButton(0);
+            PointerState s;
+            _pointer.TryGet(out s);
+            pos = s.Position;
+            fingerId = s.PointerId;
+            return s.Down;
         }
 
         private static bool IsOverUi(int fingerId)
