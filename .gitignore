@@ -35,3 +35,7 @@ Thumbs.db
 # Unity batchmode logs/results
 build/*.log
 build/*.xml
+
+# Unity MCP server built locally by tools/setup-unity-mcp.ps1
+tools/mcp-unity-server/
+ProjectSettings/McpUnitySettings.json
