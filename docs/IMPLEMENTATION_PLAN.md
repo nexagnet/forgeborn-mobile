@@ -17,9 +17,9 @@ Chốt với người dùng: mục tiêu là **bản Windows chơi được, ch�
 | GĐ | Nội dung | Cổng | Trạng thái |
 |---|---|---|---|
 | P0 | Chuyển hướng: tài liệu, build target Windows64, không gian màu Linear | `dotnet test` 63/63, EditMode 33/33 | **Xong** (commit `98bf216`, `49afe19`) |
-| P0.5 | Bộ công cụ và thiết kế: tham số `-screenshot`/`-benchmark`, script Blender, thiết kế UI ngang + art bible + danh sách âm thanh + bảng cân bằng, bộ mô hình 3D đầu tiên | Tài liệu nằm trong `GAME_DESIGN.md`, mô hình nhập được vào Unity | Đang làm: thiết kế (§13–§16), script Blender, 5 FBX và `PlayerAutomation.cs` đã có; chưa kiểm nhập FBX vào Unity và chưa chạy thử `-screenshot`/`-benchmark` vì Unity đang mất giấy phép |
+| P0.5 | Bộ công cụ và thiết kế: tham số `-screenshot`/`-benchmark`, script Blender, thiết kế UI ngang + art bible + danh sách âm thanh + bảng cân bằng, bộ mô hình 3D đầu tiên | Tài liệu nằm trong `GAME_DESIGN.md`, mô hình nhập được vào Unity | **Xong** trừ chụp lại ảnh chuẩn sau Linear: thiết kế §13–§16, script Blender, 5 FBX nhập đúng, `PlayerAutomation` chạy đúng trên .exe |
 | P1 | `IPointerSource` (chuột; cảm ứng cắm sau), phím tắt, UI ngang 1920x1080, menu/tạm dừng/cài đặt, tách HUD khỏi `ForgeSandbox` | Ảnh render 1920x1080 và 1280x720, "INPUT PATH OK" | Chưa |
-| P2 | `ForgeBornBuild.BuildWindows`, chạy .exe, đọc `Player.log`, đo FPS trên iGPU | .exe chạy sạch log, số đo vào `BENCHMARKS.md` | Chưa |
+| P2 | `ForgeBornBuild.BuildWindows`, chạy .exe, đọc `Player.log`, đo FPS trên iGPU | .exe chạy sạch log, số đo vào `BENCHMARKS.md` | **Phần lớn xong**: `ForgeBornBuild` và lần đo đầu (1280x720) đã có; còn 1920x1080 (treo) và đọc `Player.log` kỹ |
 | P3 | Lưu `Career` (schema 3), tiếng xì, cửa hàng nâng cấp, kiểm giới hạn khối lượng đơn 2–3, tiếng Việt | Test Domain/EditMode cho từng mục | Chưa |
 | P4 | Bóng đổ, mô hình đe/lò, miệng lò sáng, âm thanh thật, tầng chất lượng PC | FPS không tụt dưới ngân sách P2 | Chưa |
 | P5 | **Cổng PC:** bạn chơi bản .exe một vòng đủ và báo lại | Bạn xác nhận | Chưa |

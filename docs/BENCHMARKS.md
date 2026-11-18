@@ -34,3 +34,24 @@ headroom for a slower phone). It is an assumption, not a measurement.
 - A 1 h temper at high detail takes about a second on the PC; the game must run long thermal commands as a time skip, not per frame.
 - Substep size is the main remaining lever for grind cost (`MaxStepM` 0.5 mm was chosen for accuracy: 1.5 mm gave a 9.6 % error).
   A platform profile may relax it only with a measured accuracy test.
+
+## Windows player (frame time), 2026-11-18
+
+**Evidence label: Windows build (this PC): standalone Mono player, Direct3D11, Intel UHD Graphics (shared memory), i7-10610U, 16 GB, quality "Ultra", windowed 1280x720.**
+Low-end baseline only. Nothing here says how the game runs on a stronger GPU, a phone or another screen size.
+
+Reproduce: build with menu `ForgeBorn > Build Windows`, then
+`build\out\win\ForgeBorn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -fb-benchmark 8 -fb-out build\out\bench.json`.
+vSync and the frame cap are switched off by the tool. Phases: 3 s idle, then 8 s of grinding (2 substeps per frame, mesh rebuild included).
+
+| Phase | Frames | Avg ms | p95 ms | Max ms | FPS (avg) |
+|---|---|---|---|---|---|
+| Idle | 685 | 4.39 | 5.97 | 10.15 | 228 |
+| Grind load | 500 | 16.03 | 22.31 | 54.09 | 62 |
+
+What this says: at 1280x720 on this iGPU, grinding sits right at the 60 fps budget (16.7 ms) with hitches up to 54 ms. The phone-style UI stretched into a landscape window is part of the cost, so the number is a pessimistic starting point, not a verdict.
+
+Not measured / known gaps:
+- 1920x1080 windowed: the run hung at start-up and was killed (this screen is only 1536x864); cause not investigated.
+- Thermal ticks (x600), the Low/Medium/High quality tiers, and any GPU other than Intel UHD.
+- An earlier run showed exactly 16.7 ms per idle frame because `ForgeSandbox.Initialize` re-applied its 60 fps target after the tool had removed the cap; fixed by removing the cap after warm-up. Only the corrected run is quoted above.

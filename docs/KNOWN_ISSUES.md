@@ -54,4 +54,10 @@ Các mục "Đang mở" về iPhone/Android ở đầu file đã hoãn, không c
 ## Mở cho PC
 | Vấn đề | Trạng thái |
 |---|---|
+| Bản .exe 1920x1080 cửa sổ treo ngay khi khởi tạo (log dừng ở "Input initialized"); 1280x720 chạy tốt. Màn hình dev chỉ 1536x864 | Chưa điều tra; thử `-screen-fullscreen 1` hoặc độ phân giải ≤ màn hình |
+| Hồ sơ nền tảng chọn `editor-sim-ios` khi chạy bản Windows (nhãn HUD) | Làm hồ sơ PC ở P1 |
+| UI vẫn là bố cục điện thoại dọc trong khung ngang (nút lớn che lưỡi) | Làm lại ở P1 theo `GAME_DESIGN.md` §13 |
+| Lỗi đã sửa: `Handheld.Vibrate` không có trong bản Windows nên build lỗi CS0103 (`SandboxEffects.cs`) | Bọc `#if UNITY_IOS \|\| UNITY_ANDROID`; PC không rung |
+| `manage_build action=build` qua MCP làm mất job, Editor từng dừng | Dùng menu `ForgeBorn > Build Windows` (gọi qua `execute_code` + `delayCall`) |
+| Unity không tự nhập file mới tạo ngoài Editor (menu `ForgeBorn/Build Windows` không có) | Gọi `AssetDatabase.ImportAsset(..., ForceUpdate)` rồi `Refresh`, kiểm bằng cách tìm kiểu trong AppDomain |
 | Đổi sang không gian màu Linear (2026-11-18) | Ảnh chuẩn trong `docs/shots/` được chụp khi còn Gamma; cần chụp lại và chỉnh bloom ở P0.5/P1 |

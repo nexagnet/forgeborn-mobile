@@ -9,8 +9,11 @@ Cập nhật: 2026-11-18. File này nói game đang ở đâu và làm gì tiế
 | Hướng | **PC (Windows) trước**, điện thoại sau cổng P5 |
 | Unity | 6000.3.28f1 (6.3 LTS), build target **Windows64**, backend Mono, không gian màu **Linear** |
 | Test | Domain `dotnet test` **63/63**; Unity EditMode **33/33** |
-| Giai đoạn | P0 xong; đang ở P0.5 (bộ công cụ và thiết kế) |
-| Chưa kiểm chứng | Cảm giác chơi (chuột), bản .exe, hiệu năng, âm thanh nghe thật, mọi thứ trên điện thoại |
+| Giai đoạn | P0 xong; **P0.5 xong trừ chụp lại ảnh chuẩn** (xem §6); sẵn sàng vào P1 |
+| Bản Windows | **Build được và chạy được** (123.9 MB, `build/out/win/ForgeBorn.exe`); đo trên Intel UHD ở 1280x720: nhàn rỗi 4.4 ms, mài 16.0 ms trung bình (p95 22.3 ms). Xem `BENCHMARKS.md` |
+| Git | Nhánh `main`, các commit cục bộ chưa push |
+| Chưa kiểm chứng | Cảm giác chơi (chuột), giao diện bản PC (đang là bố cục điện thoại kéo ra khung ngang), 1920x1080 (treo lúc khởi động), âm thanh nghe thật, GPU khác, mọi thứ trên điện thoại |
+| Lưu ý lỗi thời | Chuỗi UI và hướng dẫn 13 bước trong mã là **tiếng Anh** (nhiều bước nói "Tap"), không phải tiếng Việt |
 
 ## 2. Dựng lại môi trường
 
@@ -26,7 +29,15 @@ Trên PowerShell dùng `Start-Process -Wait -PassThru` để chờ Unity; gọi 
 
 ## 3. Unity MCP
 
-Gói CoplayDev `com.coplaydev.unity-mcp` v10.0.0 (trong `Packages/manifest.json`). Đã đăng ký phía Claude: `UnityMCP` = `http://127.0.0.1:8080/mcp` (cấu hình người dùng, không nằm trong repo). Cần `uv` (có ở `~/.local/bin`).
+Gói CoplayDev `com.coplaydev.unity-mcp` v10.0.0 (trong `Packages/manifest.json`; có bản v10.3.0, chưa cập nhật). Cần `uv` (có ở `~/.local/bin`).
+
+Đăng ký phía Claude (một lần, cấu hình người dùng, không nằm trong repo). Bản bàn giao trước ghi "đã đăng ký" là **sai**: trước 2026-11-18 chưa có mục nào. Người dùng đã chạy lệnh sau và `~/.claude.json` giờ có `UnityMCP`:
+
+```
+claude mcp add --transport http --scope user UnityMCP http://127.0.0.1:8080/mcp
+```
+
+Công cụ `UnityMCP` chỉ hiện trong phiên Claude **mở sau** khi máy chủ Unity đang chạy (hoặc kết nối lại bằng `/mcp`). Nếu phiên mới vẫn không thấy, kiểm `claude mcp list` và xác nhận cổng 8080 đang nghe.
 
 Bật mỗi lần: mở Editor có giao diện, **Window > MCP for Unity > Toggle MCP Window**, ở **Edit mode**, bấm **Start Server**, rồi **Start** ở hộp thoại. Đã kiểm 2026-11-18: đọc Console, chạy test, đổi build target và `execute_code` đều hoạt động.
 
@@ -48,8 +59,28 @@ Lưu ý: công cụ chỉ hiện trong Claude nếu phiên mở **sau** khi serv
 
 ## 6. Bước tiếp theo
 
-1. P0.5: tham số `-screenshot`/`-benchmark`, script Blender, bốn mục thiết kế vào `GAME_DESIGN.md`, bộ mô hình 3D đầu tiên.
-2. Chụp lại ảnh chuẩn sau khi đổi Linear, chỉnh bloom.
-3. P1 trở đi theo `IMPLEMENTATION_PLAN.md`.
+### P0.5 đã xong
+- Thiết kế: `GAME_DESIGN.md` §13–§16 (UI ngang 16:9, art bible, danh sách âm thanh, bảng kinh tế).
+- `tools/blender/forge_models.py`: chạy `"C:\Program Files\Blender Foundation\Blender 5.3\blender.exe" -b -P tools/blender/forge_models.py -- <thư mục xuất> [--preview]`. Xuất 5 FBX (đe, lò, bể tôi, bánh mài, chuôi), mô hình còn **thô và vuông**. Năm file nằm ở `Assets/_ForgeBorn/Art/Models`, đã nhập vào Unity đúng kích thước và vật liệu.
+- `PlayerAutomation.cs`: `-fb-screenshot <file> [-fb-wait 3]`, `-fb-benchmark <giây> [-fb-out file]` cho bản .exe. Biên dịch sạch, **chưa chạy**.
+- `ForgeBornBuild.cs`: menu `ForgeBorn > Build Windows`, ra `build/out/win/ForgeBorn.exe` và `build/out/win_build.txt`. Mono (không có IL2CPP cho Windows).
 
-Việc cần bạn: P5 (chơi bản .exe) và các quyết định về phát hành/điện thoại.
+### P0.5 đã kiểm chứng ngày 2026-11-18
+- Build Windows thành công qua menu `ForgeBorn > Build Windows` (gọi qua MCP: `execute_code` với `EditorApplication.delayCall += () => EditorApplication.ExecuteMenuItem("ForgeBorn/Build Windows")`, rồi đọc `build/out/win_build.txt`). **Không** dùng `manage_build action=build`: job bị mất và Editor từng dừng. Lần đầu build lỗi vì `Handheld.Vibrate` không có trên Windows; đã bọc `#if UNITY_IOS || UNITY_ANDROID`.
+- `-fb-screenshot` và `-fb-benchmark` chạy đúng. Ảnh chụp từ .exe (`build/out/shot_1280x720.png`, không nằm trong git) cho thấy giao diện điện thoại dọc bị kéo ra khung ngang: nút lớn che lưỡi, HUD ghi `[editor-sim-ios]`, toàn bộ chữ tiếng Anh. Đó là việc của P1.
+- `-fb-benchmark` từng bị giới hạn 60 khung vì `ForgeSandbox.Initialize` đặt lại `targetFrameRate`; đã sửa trong `PlayerAutomation.cs`.
+
+### Còn dở
+1. Chụp lại ảnh chuẩn trong `docs/shots/` (đang là bản Gamma cũ) sau khi đổi Linear, chỉnh bloom (`ForgeBornCapture.Run`, Editor đóng, không `-nographics`).
+2. Bản .exe 1920x1080 cửa sổ treo lúc khởi động (màn hình dev 1536x864); chưa điều tra.
+3. Chưa chạy `-fb-screenshot` ở các cấu hình khác.
+
+### Sau đó
+P1 theo `IMPLEMENTATION_PLAN.md` và `GAME_DESIGN.md` §13: `IPointerSource`, phím tắt, hồ sơ nền tảng PC, UI ngang, menu. Đổi build target hoặc biên dịch lại làm Editor nạp lại assembly nên MCP mất kết nối tạm vài chục giây. File mới tạo ngoài Editor có thể không được nhập: gọi `AssetDatabase.ImportAsset(path, ForceUpdate)` rồi `Refresh` và kiểm tra kiểu đã có.
+
+### Cạm bẫy đã gặp (tránh lặp lại)
+- **Giấy phép Unity** có thể hết hạn giữa phiên: Editor tự thoát, log ghi "No ULF license found". Cần người dùng đăng nhập lại Unity Hub (tôi không nhập thông tin đăng nhập).
+- Hook GateGuard bắt nêu người gọi, hàm bị ảnh hưởng, dữ liệu và lời người dùng trước lần ghi/sửa đầu tiên của mỗi file; nêu xong rồi thử lại cùng thao tác.
+- Máy chỉ có Intel UHD: mọi số FPS là mốc thấp, không khẳng định cho GPU khác.
+
+Việc cần bạn: P5 (chơi bản .exe), đăng nhập lại Unity Hub khi hết hạn, và các quyết định về phát hành/điện thoại.

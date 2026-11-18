@@ -110,6 +110,10 @@ namespace ForgeBorn.UnityLayer
 
             for (int i = 0; i < WarmupFrames; i++) yield return null;
 
+            // ForgeSandbox.Initialize sets Application.targetFrameRate from its platform profile; undo that after it has run.
+            QualitySettings.vSyncCount = 0;
+            Application.targetFrameRate = -1;
+
             double massBefore = sb.Session.MassKg;
             var idle = new List<float>();
             var load = new List<float>();

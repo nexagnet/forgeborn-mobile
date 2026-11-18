@@ -27,7 +27,9 @@ namespace ForgeBorn.UnityLayer
             if (strength01 < 0.3f) return;
             if (Time.unscaledTime - _last < 0.25f) return;
             _last = Time.unscaledTime;
+#if UNITY_IOS || UNITY_ANDROID
             Handheld.Vibrate();
+#endif // Handheld does not exist in the Windows player: no vibration on PC
         }
     }
 
