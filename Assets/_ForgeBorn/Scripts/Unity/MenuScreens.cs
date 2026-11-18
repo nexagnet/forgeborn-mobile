@@ -82,7 +82,7 @@ namespace ForgeBorn.UnityLayer
 
         // ---------------------------------------------------------------- layout helpers
 
-        private static RectTransform Layer(RectTransform safe, string name, string title, int titleSize, Vector2 boxMin, Vector2 boxMax, out GameObject layer)
+        internal static RectTransform Layer(RectTransform safe, string name, string title, int titleSize, Vector2 boxMin, Vector2 boxMax, out GameObject layer)
         {
             layer = new GameObject(name, typeof(RectTransform), typeof(Image));
             var dim = layer.GetComponent<RectTransform>();
@@ -107,8 +107,8 @@ namespace ForgeBorn.UnityLayer
 
         private const float RowH = 0.115f, RowGap = 0.025f, RowTop = 0.80f;
 
-        private static Vector2 RowMin(int row, float x0) { return new Vector2(x0, RowTop - row * (RowH + RowGap) - RowH); }
-        private static Vector2 RowMax(int row, float x1) { return new Vector2(x1, RowTop - row * (RowH + RowGap)); }
+        internal static Vector2 RowMin(int row, float x0) { return new Vector2(x0, RowTop - row * (RowH + RowGap) - RowH); }
+        internal static Vector2 RowMax(int row, float x1) { return new Vector2(x1, RowTop - row * (RowH + RowGap)); }
 
         // ---------------------------------------------------------------- screens
 

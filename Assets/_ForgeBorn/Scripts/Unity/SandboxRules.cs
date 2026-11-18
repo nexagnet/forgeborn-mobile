@@ -35,11 +35,13 @@ namespace ForgeBorn.UnityLayer
             return Math.Min(MaxPressureN, Math.Max(MinPressureN, e));
         }
 
-        public static ThermalEnvironment EnvFor(ForgeEnv env)
+        public static ThermalEnvironment EnvFor(ForgeEnv env) { return EnvFor(env, false); }
+
+        public static ThermalEnvironment EnvFor(ForgeEnv env, bool fastFurnace)
         {
             switch (env)
             {
-                case ForgeEnv.Furnace: return ThermalEnvironment.Furnace(FurnaceK);
+                case ForgeEnv.Furnace: return fastFurnace ? ThermalEnvironment.FastFurnace(FurnaceK) : ThermalEnvironment.Furnace(FurnaceK);
                 case ForgeEnv.Water: return ThermalEnvironment.Water();
                 case ForgeEnv.Oil: return ThermalEnvironment.Oil();
                 case ForgeEnv.Oven: return ThermalEnvironment.Oven(OvenK);

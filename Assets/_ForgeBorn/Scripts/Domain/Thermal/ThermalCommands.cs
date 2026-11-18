@@ -40,6 +40,8 @@ namespace ForgeBorn.Domain.Commands
 
         public static ThermalEnvironment Air() { return Constant("air", 293.15, 15.0, true); }
         public static ThermalEnvironment Furnace(double tempK) { return Constant("furnace", tempK, 60.0, true); }
+        /// <summary>A furnace with a better draught: same temperature, stronger convection, so the blade heats faster.</summary>
+        public static ThermalEnvironment FastFurnace(double tempK) { return Constant("furnace_fast", tempK, 100.0, true); }
         public static ThermalEnvironment Oven(double tempK) { return Constant("oven", tempK, 25.0, true); }
         public static ThermalEnvironment Oil() { return new ThermalEnvironment("oil", 323.15, 350.0, 1500.0, 250.0, 573.0, 873.0, false); }
         public static ThermalEnvironment Water() { return new ThermalEnvironment("water", 293.15, 1500.0, 9000.0, 3500.0, 573.0, 873.0, false); }

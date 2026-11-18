@@ -71,6 +71,7 @@ namespace ForgeBorn.UnityLayer
         private Career _career = new Career();
         /// <summary>False for capture, benchmark, batch and edit-mode test runs so they never touch the player's career file.</summary>
         private bool _persistCareer;
+        private ShopScreen _shop;
         private Order _order;
         private int _orderIndex = -1;
         private bool _delivered;
@@ -388,6 +389,7 @@ namespace ForgeBorn.UnityLayer
         private void OnEscape()
         {
             if (_menus == null) { SetPaused(!_paused); return; }
+            if (_shop != null && _shop.IsOpen) { CloseShop(); return; }
             if (_menus.MainOpen) return;
             if (_menus.AnyOpen) _menus.Back(); else SetPaused(true);
         }
@@ -449,6 +451,11 @@ namespace ForgeBorn.UnityLayer
                 Quit = QuitGame,
                 HasSave = () => File.Exists(SavePath),
             });
+        }
+
+        private void BuildShop(RectTransform safe)
+        {
+            _shop = new ShopScreen(safe, () => _career, s => _status = s, () => { SaveCareer(); RefreshHud(); });
         }
 
         private static void QuitGame()
@@ -674,7 +681,7 @@ namespace ForgeBorn.UnityLayer
             double dt = _thermalAcc * SandboxRules.TimeScales[_speedIndex];
             _thermalAcc = 0f;
 
-            ThermalEnvironment env = SandboxRules.EnvFor(_env);
+            ThermalEnvironment env = SandboxRules.EnvFor(_env, _career.Owns(Upgrade.HotFurnace));
             if (!SandboxRules.NeedsTick(_session.Profile, env, _env == ForgeEnv.Oven)) return;
 
             // Quenches need fine steps (the cooling rate at the nose decides hardness); air/oven/furnace tolerate coarse ones.
@@ -749,10 +756,11 @@ namespace ForgeBorn.UnityLayer
             for (int i = 0; i < 5; i++)
             {
                 int idx = i;
-                _envLabels[i] = MakeButton(safe, names[i], ColMin(row), ColMax(row), () => { _env = (ForgeEnv)idx; _status = "environment: " + names[idx]; });
+                _envLabels[i] = MakeButton(safe, names[i], ColMin(row), ColMax(row), () => SelectEnv(idx, names[idx]));
                 row++;
             }
-            MakeButton(safe, "Zoom", ColMin(row), ColMax(row), CycleZoom);
+            MakeButton(safe, "Zoom", ColMin(row), ColMax(row), CycleZoom); row++;
+            MakeButton(safe, "Shop", ColMin(row), ColMax(row), OpenShop);
 
             // Bottom bar, nine buttons across.
             const float barX0 = 0.135f, barW = 0.095f, barY0 = 0.01f, barY1 = 0.095f;
@@ -783,6 +791,7 @@ namespace ForgeBorn.UnityLayer
             img.raycastTarget = false;
             _reportText = MakeText(prt, "ReportText", 18, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
             _reportPanel.SetActive(false);
+            BuildShop(safe);
             BuildMenus(safe); // last child, so the menus draw over everything
 
         }
@@ -913,10 +922,49 @@ namespace ForgeBorn.UnityLayer
             if (_tool != ToolMode.Inspect) ResetView(); // grinding and hammering are done on the face-on view
         }
 
+        private bool WheelAllowed(int i) { return i != 2 || _career.Owns(Upgrade.FineWheel); }
+
+        private bool FaceAllowed(int i) { return i != 1 || _career.Owns(Upgrade.PeenFace); }
+
+        /// <summary>Next unlocked wheel or hammer face. The coarse wheel and flat face are always owned, so the loop ends.</summary>
         private void CycleOption()
         {
-            if (_tool == ToolMode.Grind) _wheelIndex = (_wheelIndex + 1) % _wheels.Length;
-            else if (_tool == ToolMode.Hammer) _faceIndex = (_faceIndex + 1) % _faces.Length;
+            if (_tool == ToolMode.Grind)
+            {
+                do _wheelIndex = (_wheelIndex + 1) % _wheels.Length; while (!WheelAllowed(_wheelIndex));
+            }
+            else if (_tool == ToolMode.Hammer)
+            {
+                do _faceIndex = (_faceIndex + 1) % _faces.Length; while (!FaceAllowed(_faceIndex));
+            }
+        }
+
+        private void SelectEnv(int idx, string name)
+        {
+            if ((ForgeEnv)idx == ForgeEnv.Oil && !_career.Owns(Upgrade.OilBath)) { _status = "Oil bath is locked: buy it in the Shop (after your first delivery)."; return; }
+            _env = (ForgeEnv)idx;
+            _status = "environment: " + name;
+        }
+
+        private void OpenShop()
+        {
+            if (_paused) return;
+            if (!_career.ShopOpen) { _status = "The shop opens after your first delivered order."; return; }
+            _paused = true;
+            Time.timeScale = 0f;
+            if (_audio != null) _audio.SetGrind(0f, 0f);
+            _hasPrev = false;
+            _hasScreenPrev = false;
+            _shop.Show();
+        }
+
+        private void CloseShop()
+        {
+            _shop.Hide();
+            _paused = false;
+            Time.timeScale = 1f;
+            SaveCareer();
+            RefreshHud();
         }
 
         private void CycleSpeed() { _speedIndex = (_speedIndex + 1) % SandboxRules.TimeScales.Length; }

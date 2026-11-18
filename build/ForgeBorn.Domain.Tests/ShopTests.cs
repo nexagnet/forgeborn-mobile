@@ -1,4 +1,6 @@
 using ForgeBorn.Domain.Orders;
+using System.Linq;
+using ForgeBorn.Domain.Commands;
 using Xunit;
 
 namespace ForgeBorn.Domain.Tests
@@ -80,5 +82,16 @@ namespace ForgeBorn.Domain.Tests
             Assert.True(c.ShopOpen);
             Assert.False(c.Owns(Upgrade.FineWheel));
         }
-    }
+    
+        [Fact]
+        public void FastFurnace_HeatsTheBladeFasterThanTheNormalFurnace_AtTheSameTemperature()
+        {
+            var normal = HB.Beveled();
+            var fast = HB.Beveled();
+            Assert.True(normal.ApplyThermal(HB.Therm(ThermalEnvironment.Furnace(1500.0), 30.0)).Accepted);
+            Assert.True(fast.ApplyThermal(HB.Therm(ThermalEnvironment.FastFurnace(1500.0), 30.0)).Accepted);
+            Assert.Equal(1500.0, ThermalEnvironment.FastFurnace(1500.0).TempK);
+            Assert.True(fast.Profile.TempK.Average() > normal.Profile.TempK.Average() + 1.0);
+        }
+}
 }
