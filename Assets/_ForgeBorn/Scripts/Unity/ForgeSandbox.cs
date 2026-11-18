@@ -544,7 +544,9 @@ namespace ForgeBorn.UnityLayer
             if (EventSystem.current == null)
                 new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
 
-            float dpScale = Mathf.Max(1f, (Screen.dpi > 0f ? Screen.dpi : 160f) / 160f);
+            // Scale from the real pixel width (390 pt reference, like the capture), not from Screen.dpi: under Unity Remote the dpi is the phone's
+            // but the Game view size is the editor's, which made every control about twice too big and the tutorial panel cover the buttons.
+            float dpScale = Mathf.Max(1f, Mathf.Min(Screen.width, Screen.height) / 390f);
             var canvasGo = new GameObject("HUD", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;

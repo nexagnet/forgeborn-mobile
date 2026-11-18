@@ -54,7 +54,9 @@ namespace ForgeBorn.UnityLayer
             _sampleRate = AudioSettings.outputSampleRate;
             // Real recording (CC0, see docs/CREDITS.md) layered over the synthesized clank; absent file falls back to synthesis only.
             _hammerHit = Resources.Load<AudioClip>("Audio/hammer_hit");
-            _oneShot = gameObject.AddComponent<AudioSource>();
+            // Own child object: two AudioSources on the object that runs OnAudioFilterRead made Unity warn and can feed the synth twice.
+            _oneShot = new GameObject("OneShot").AddComponent<AudioSource>();
+            _oneShot.transform.SetParent(transform, false);
             _oneShot.spatialBlend = 0f;
             _oneShot.playOnAwake = false;
             var src = gameObject.AddComponent<AudioSource>();

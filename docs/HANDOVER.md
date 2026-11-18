@@ -14,15 +14,13 @@
 
 Trên PowerShell dùng `Start-Process -Wait -PassThru` để chờ Unity; gọi trực tiếp bằng `&` sẽ trả về ngay.
 
-## 2. Unity MCP (chưa kiểm chứng đầu cuối)
+## 2. Unity MCP (CoplayDev, chạy được phía Unity; công cụ chưa hiện trong Claude)
 
-Gói `com.gamelovers.mcp-unity` đã nằm trong `Packages/manifest.json`. Server Node build bằng script, `.mcp.json` đăng ký nó với Claude Code bằng đường dẫn tương đối:
+Dùng gói CoplayDev `com.coplaydev.unity-mcp` (v10.0.0, trong `Packages/manifest.json`). Server MCP của CoderGamester đã bị gỡ để tránh hai gói xung đột. Đã đăng ký phía Claude: `UnityMCP` = `http://127.0.0.1:8080/mcp` (cấu hình cấp người dùng, không nằm trong repo).
 
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/setup-unity-mcp.ps1
-```
+Cách bật mỗi lần: mở project bằng Unity Editor có giao diện, **Window > MCP for Unity > Toggle MCP Window**, **Edit mode (không phải Play)**, bấm **Start Server**, rồi bấm **Start** ở hộp thoại xác nhận (chỉ hiện ở Edit mode; trong Play mode nút không phản hồi). Kết quả đã thấy ngày 2026-11-18: Console ghi "Server ready on http://127.0.0.1:8080" và "Session connected", cửa sổ hiện "Session Active (FORGEBORN)". Cần `uv` (đã có ở `~/.local/bin`).
 
-Rồi mở project bằng Unity Editor có giao diện (cổng 8090, `ProjectSettings/McpUnitySettings.json` do Unity tạo, đã gitignore) và khởi động Claude Code từ thư mục repo. `claude mcp list` đã báo "Connected" khi đăng ký, nhưng trong phiên bàn giao công cụ không hiện ra (server thêm giữa phiên không được nhận), nên chưa có lần gọi công cụ thật nào. Việc đầu tiên của phiên sau: xác nhận các công cụ `unity` xuất hiện và đọc được console của Editor.
+Chưa kiểm chứng: gọi công cụ từ Claude. Phiên bàn giao đã bắt đầu khi server chưa chạy nên `UnityMCP` bị ghi "Failed to connect" và không tự nối lại, công cụ không hiện. Phiên mới, mở sau khi server đã chạy, nên thấy công cụ; việc đầu tiên là xác nhận và đọc Console của Editor.
 
 ## 3. Đã làm
 
