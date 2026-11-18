@@ -11,6 +11,7 @@ using ForgeBorn.Domain.Session;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using static ForgeBorn.UnityLayer.HudWidgets;
 
 namespace ForgeBorn.UnityLayer
 {
@@ -108,6 +109,8 @@ namespace ForgeBorn.UnityLayer
         private void Start()
         {
             Initialize();
+            // The main menu is for a person starting the game: not for the headless capture, the batch runs or the -fb-* automation.
+            if (!Application.isBatchMode && !AutomationRequested()) ShowMainMenu();
         }
 
         // ---------------------------------------------------------------- capture / test hooks (used by the headless screenshot tool)
@@ -189,8 +192,10 @@ namespace ForgeBorn.UnityLayer
         {
             if (_initialized) return;
             _initialized = true;
+            _settings = GameSettings.Load();
             _profile = PlatformProfile.Current;
             Application.targetFrameRate = _profile.TargetFps;
+            if (PlayerPrefs.HasKey(GameSettings.PrefsKey)) _settings.Apply(); // only once the player has saved settings: do not fight the window default
 #if UNITY_IOS || UNITY_ANDROID
             Screen.orientation = ScreenOrientation.Portrait;
 #endif
@@ -329,7 +334,7 @@ namespace ForgeBorn.UnityLayer
                     case KeyAction.SpeedDown: _speedIndex = DesktopKeys.StepIndex(_speedIndex, -1, SandboxRules.TimeScales.Length); break;
                     case KeyAction.SpeedUp: _speedIndex = DesktopKeys.StepIndex(_speedIndex, 1, SandboxRules.TimeScales.Length); break;
                     case KeyAction.NextStation: GoStation(DesktopKeys.Next(_station)); break;
-                    case KeyAction.Pause: SetPaused(!_paused); break;
+                    case KeyAction.Pause: OnEscape(); break;
                     default:
                         Station s;
                         if (DesktopKeys.TryStation(a, out s)) GoStation(s);
@@ -370,17 +375,75 @@ namespace ForgeBorn.UnityLayer
             KeyCode.Tab, KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Escape,
         };
 
-        private GameObject _pausePanel;
-        private Text _volumeLabel;
+        private MenuScreens _menus;
+        // Loaded in Initialize(): PlayerPrefs may not be called from a field initializer (Unity throws).
+        private GameSettings _settings;
+
+        /// <summary>Esc: inside a menu go back (settings) or resume (pause); the main menu ignores it; in the workshop open the pause menu.</summary>
+        private void OnEscape()
+        {
+            if (_menus == null) { SetPaused(!_paused); return; }
+            if (_menus.MainOpen) return;
+            if (_menus.AnyOpen) _menus.Back(); else SetPaused(true);
+        }
 
         public void SetPaused(bool paused)
         {
             _paused = paused;
             Time.timeScale = paused ? 0f : 1f;
-            if (_pausePanel != null) _pausePanel.SetActive(paused);
-            if (paused) _audio.SetGrind(0f, 0f);
+            if (_menus != null) { if (paused) _menus.ShowPause(); else _menus.HideAll(); }
+            if (paused && _audio != null) _audio.SetGrind(0f, 0f);
             _hasPrev = false;
             _hasScreenPrev = false;
+        }
+
+        public void ShowMainMenu()
+        {
+            _paused = true;
+            Time.timeScale = 0f;
+            if (_audio != null) _audio.SetGrind(0f, 0f);
+            _menus.ShowMain();
+        }
+
+        private void ContinueGame()
+        {
+            Load();
+            SetPaused(false);
+        }
+
+        private void StartNewGame()
+        {
+            _order = null;
+            _orderIndex = -1;
+            _delivered = false;
+            _resultText = null;
+            _showReport = false;
+            if (_reportPanel != null) _reportPanel.SetActive(false);
+            NewWeapon();
+            _env = ForgeEnv.Air;
+            _tutorial.Restart();
+            _hammerHits = 0;
+            _status = "";
+            SetPaused(false);
+        }
+
+        private static bool AutomationRequested()
+        {
+            foreach (string a in System.Environment.GetCommandLineArgs())
+                if (a.StartsWith("-fb-screenshot", System.StringComparison.OrdinalIgnoreCase) || a.StartsWith("-fb-benchmark", System.StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
+        private void BuildMenus(RectTransform safe)
+        {
+            _menus = new MenuScreens(safe, _settings, new MenuScreens.Actions
+            {
+                Resume = () => SetPaused(false),
+                Continue = ContinueGame,
+                NewGame = StartNewGame,
+                Quit = QuitGame,
+                HasSave = () => File.Exists(SavePath),
+            });
         }
 
         private static void QuitGame()
@@ -390,46 +453,6 @@ namespace ForgeBorn.UnityLayer
 #else
             Application.Quit();
 #endif
-        }
-
-        private void ChangeVolume(float delta)
-        {
-            AudioListener.volume = Mathf.Clamp01(AudioListener.volume + delta);
-            if (_volumeLabel != null) _volumeLabel.text = "Volume " + Mathf.RoundToInt(AudioListener.volume * 100f) + "%";
-        }
-
-        /// <summary>Full-screen dim layer that blocks the pointer, with a centred box: Resume, Fullscreen, Volume, Quit.</summary>
-        private void BuildPausePanel(RectTransform safe)
-        {
-            _pausePanel = new GameObject("PausePanel", typeof(RectTransform), typeof(Image));
-            var dim = _pausePanel.GetComponent<RectTransform>();
-            dim.SetParent(safe, false);
-            dim.anchorMin = Vector2.zero;
-            dim.anchorMax = Vector2.one;
-            dim.offsetMin = dim.offsetMax = Vector2.zero;
-            _pausePanel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f); // raycastTarget stays on: blocks the HUD behind it
-
-            var box = new GameObject("Box", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
-            box.SetParent(dim, false);
-            box.anchorMin = new Vector2(0.36f, 0.22f);
-            box.anchorMax = new Vector2(0.64f, 0.78f);
-            box.offsetMin = box.offsetMax = Vector2.zero;
-            box.GetComponent<Image>().color = new Color(0.08f, 0.08f, 0.1f, 0.96f);
-
-            Text title = MakeText(box, "Title", 36, TextAnchor.MiddleCenter, new Vector2(0f, 0.84f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
-            title.text = "PAUSED";
-            title.color = new Color(1f, 0.72f, 0.3f);
-
-            const float h = 0.13f, gap = 0.03f;
-            float y = 0.82f - h;
-            MakeButton(box, "Resume", new Vector2(0.1f, y), new Vector2(0.9f, y + h), () => SetPaused(false)); y -= h + gap;
-            MakeButton(box, "Fullscreen", new Vector2(0.1f, y), new Vector2(0.9f, y + h), () => Screen.fullScreenMode = Screen.fullScreen ? FullScreenMode.Windowed : FullScreenMode.FullScreenWindow); y -= h + gap;
-            MakeButton(box, "Volume -", new Vector2(0.1f, y), new Vector2(0.48f, y + h), () => ChangeVolume(-0.1f));
-            MakeButton(box, "Volume +", new Vector2(0.52f, y), new Vector2(0.9f, y + h), () => ChangeVolume(0.1f)); y -= h + gap;
-            _volumeLabel = MakeText(box, "VolumeText", 22, TextAnchor.MiddleCenter, new Vector2(0.1f, y), new Vector2(0.9f, y + h), Vector2.zero, Vector2.zero);
-            _volumeLabel.text = "Volume " + Mathf.RoundToInt(AudioListener.volume * 100f) + "%"; y -= h + gap;
-            MakeButton(box, "Quit", new Vector2(0.1f, y), new Vector2(0.9f, y + h), QuitGame);
-            _pausePanel.SetActive(false);
         }
 
         private void GoStation(Station s)
@@ -755,7 +778,7 @@ namespace ForgeBorn.UnityLayer
             img.raycastTarget = false;
             _reportText = MakeText(prt, "ReportText", 18, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
             _reportPanel.SetActive(false);
-            BuildPausePanel(safe); // last child, so it draws over everything
+            BuildMenus(safe); // last child, so the menus draw over everything
 
         }
 
@@ -782,22 +805,6 @@ namespace ForgeBorn.UnityLayer
             // Next and Skip live on the panel (buttons block touches only where they are).
             _nextBtn = MakePanelButton(rt, "Next", 1f, () => _tutorial.Acknowledge());
             MakePanelButton(rt, "Skip", 0f, () => { _tutorial.Skip(); RefreshHud(); });
-        }
-
-        private static Text MakePanelButton(RectTransform panel, string label, float slot, UnityEngine.Events.UnityAction onClick)
-        {
-            var go = new GameObject("Tut_" + label, typeof(RectTransform), typeof(Image), typeof(Button));
-            var rt = go.GetComponent<RectTransform>();
-            rt.SetParent(panel, false);
-            rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
-            rt.pivot = new Vector2(1f, 0f);
-            rt.sizeDelta = new Vector2(110f, 40f);
-            rt.anchoredPosition = new Vector2(-10f - slot * 120f, 8f);
-            go.GetComponent<Image>().color = new Color(0.3f, 0.32f, 0.38f, 0.95f);
-            go.GetComponent<Button>().onClick.AddListener(onClick);
-            Text t = MakeText(rt, "Label", 20, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            t.text = label;
-            return t;
         }
 
         private TutorialSnapshot MakeTutorialSnapshot()
@@ -861,37 +868,6 @@ namespace ForgeBorn.UnityLayer
                 float k = 0.5f + 0.5f * Mathf.Sin(_pulse * 5f);
                 target.transform.parent.GetComponent<Image>().color = Color.Lerp(ButtonIdle, new Color(0.95f, 0.55f, 0.12f, 1f), 0.45f + 0.4f * k);
             }
-        }
-
-        private static Text MakeText(RectTransform parent, string name, int size, TextAnchor anchor, Vector2 aMin, Vector2 aMax, Vector2 oMin, Vector2 oMax)
-        {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Text));
-            var rt = go.GetComponent<RectTransform>();
-            rt.SetParent(parent, false);
-            rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = oMin; rt.offsetMax = oMax;
-            var t = go.GetComponent<Text>();
-            t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            t.fontSize = size;
-            t.alignment = anchor;
-            t.color = Color.white;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        private static Text MakeButton(RectTransform parent, string label, Vector2 aMin, Vector2 aMax, UnityEngine.Events.UnityAction onClick)
-        {
-            var go = new GameObject("Btn_" + label, typeof(RectTransform), typeof(Image), typeof(Button));
-            var rt = go.GetComponent<RectTransform>();
-            rt.SetParent(parent, false);
-            rt.anchorMin = aMin;
-            rt.anchorMax = aMax;
-            rt.offsetMin = new Vector2(3f, 0f);
-            rt.offsetMax = new Vector2(-3f, 0f);
-            go.GetComponent<Image>().color = new Color(0.25f, 0.27f, 0.32f, 0.95f);
-            go.GetComponent<Button>().onClick.AddListener(onClick);
-            Text t = MakeText(rt, "Label", 22, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-            t.text = label;
-            return t;
         }
 
         private void RefreshHud()

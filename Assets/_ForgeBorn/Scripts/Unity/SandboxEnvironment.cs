@@ -119,7 +119,7 @@ namespace ForgeBorn.UnityLayer
             {
                 var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
                 quad.name = "Backdrop";
-                Object.Destroy(quad.GetComponent<Collider>());
+                SandboxProps.DropCollider(quad);
                 quad.transform.SetParent(root.transform, false);
                 quad.transform.position = new Vector3(0f, 0f, 3f);
                 quad.transform.localScale = new Vector3(14f, 14f, 1f);

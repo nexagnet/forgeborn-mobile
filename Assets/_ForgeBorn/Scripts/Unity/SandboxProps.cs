@@ -20,6 +20,14 @@ namespace ForgeBorn.UnityLayer
 
         private static Texture2D Tex(string name) => Resources.Load<Texture2D>("Art/" + name);
 
+        /// <summary>Primitives come with a collider we never use. Destroy() is illegal in edit mode (the headless capture and EditMode tests).</summary>
+        internal static void DropCollider(GameObject go)
+        {
+            Collider c = go.GetComponent<Collider>();
+            if (c == null) return;
+            if (Application.isPlaying) Object.Destroy(c); else Object.DestroyImmediate(c);
+        }
+
         private static Material PropMat(Shader sh, string set, Texture env, Color tint, float metal, float roughScale)
         {
             var m = new Material(sh);
@@ -38,7 +46,7 @@ namespace ForgeBorn.UnityLayer
         {
             var go = GameObject.CreatePrimitive(type);
             go.name = name;
-            Object.Destroy(go.GetComponent<Collider>());
+            DropCollider(go);
             go.transform.SetParent(parent, false);
             float f = DepthScale(pos.z);
             go.transform.position = new Vector3(pos.x * f, pos.y * f, pos.z);

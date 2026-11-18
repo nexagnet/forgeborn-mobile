@@ -35,7 +35,23 @@ namespace ForgeBorn.UnityLayer
 
         public static PlatformProfile Current
         {
-            get { return _current ?? (_current = ForPlatform(Application.platform, SystemInfo.systemMemorySize)); }
+            get
+            {
+                if (_current == null)
+                {
+                    PlatformProfile p = ForPlatform(Application.platform, SystemInfo.systemMemorySize);
+                    int tier = GameSettings.Load().Tier; // the player's choice from the settings screen, -1 = automatic
+                    _current = tier >= 0 ? WithTier(p, (QualityTier)tier) : p;
+                }
+                return _current;
+            }
+        }
+
+        /// <summary>Same platform, different quality tier (settings screen). Pure, so it can be tested.</summary>
+        public static PlatformProfile WithTier(PlatformProfile p, QualityTier tier)
+        {
+            int sparks = tier == QualityTier.High ? 300 : (tier == QualityTier.Medium ? 150 : 60);
+            return new PlatformProfile(p.Name, tier, p.TargetFps, sparks, tier != QualityTier.Low, p.UseHandheldHaptics, p.Simulated);
         }
 
         /// <summary>Pure function (EditMode-testable). systemMemoryMb is SystemInfo.systemMemorySize.</summary>
