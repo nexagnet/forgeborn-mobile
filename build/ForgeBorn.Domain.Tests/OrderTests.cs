@@ -116,5 +116,43 @@ namespace ForgeBorn.Domain.Tests
             c.Apply(o1, OrderBook.Settle(o1, cracked));
             Assert.Equal(before - o1.BlankCost, c.Money);
         }
-    }
+    
+        [Fact]
+        public void Career_RoundTripsThroughText()
+        {
+            var c = new Career();
+            Order o1 = OrderBook.ById("o1"), o2 = OrderBook.ById("o2");
+            c.Apply(o1, OrderBook.Settle(o1, Good("A", 88)));
+            c.Apply(o2, OrderBook.Settle(o2, Good("C", 70)));
+            Career back = Career.Parse(c.Serialize());
+            Assert.Equal(c.Money, back.Money);
+            Assert.Equal("A", back.BestGrade("o1"));
+            Assert.Equal("C", back.BestGrade("o2"));
+            Assert.Null(back.BestGrade("o3"));
+            Assert.Equal(c.Serialize(), back.Serialize());
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("garbage")]
+        [InlineData("career1;money=abc;best=o1:Z,:A,o2")]
+        [InlineData("career9;money=5")]
+        public void Career_ParseNeverThrowsAndFallsBackToEmpty(string text)
+        {
+            Career c = Career.Parse(text);
+            Assert.NotNull(c);
+            Assert.Equal(0, c.Money);
+            Assert.Null(c.BestGrade("o1"));
+        }
+
+        [Fact]
+        public void Career_ParseKeepsValidPartsAndIgnoresUnknownKeys()
+        {
+            Career c = Career.Parse("career1;money=250;future=1;best=o1:B,o2:Q,o3");
+            Assert.Equal(250, c.Money);
+            Assert.Equal("B", c.BestGrade("o1"));
+            Assert.Null(c.BestGrade("o2"));
+        }
+}
 }

@@ -126,7 +126,7 @@ namespace ForgeBorn.Domain.Orders
         }
     }
 
-    /// <summary>Money and best grades earned so far. In memory only: saving it is schema 3 (not done).</summary>
+    /// <summary>Money and best grades earned so far. Saved as one line of text (see Serialize/Parse).</summary>
     public sealed class Career
     {
         public long Money;
@@ -149,6 +149,51 @@ namespace ForgeBorn.Domain.Orders
             foreach (Order o in OrderBook.All)
                 if (o.Tier == order.Tier - 1 && BestGrade(o.Id) != null) return true;
             return false;
+        }
+
+        private const string Magic = "career1";
+        private static readonly string[] Grades = { "F", "D", "C", "B", "A", "S" };
+
+        /// <summary>One line: career1;money=N;best=id:G,id:G. Order of best grades is stable so equal careers give equal text.</summary>
+        public string Serialize()
+        {
+            var ids = new List<string>(_best.Keys);
+            ids.Sort(StringComparer.Ordinal);
+            var parts = new List<string>();
+            foreach (string id in ids) parts.Add(id + ":" + _best[id]);
+            return Magic + ";money=" + Money.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";best=" + string.Join(",", parts);
+        }
+
+        /// <summary>Never throws. Unknown version or garbage gives an empty career; bad entries are skipped, unknown keys ignored.</summary>
+        public static Career Parse(string text)
+        {
+            var c = new Career();
+            if (string.IsNullOrEmpty(text)) return c;
+            string[] fields = text.Trim().Split(';');
+            if (fields.Length == 0 || fields[0] != Magic) return c;
+            for (int i = 1; i < fields.Length; i++)
+            {
+                int eq = fields[i].IndexOf('=');
+                if (eq <= 0) continue;
+                string key = fields[i].Substring(0, eq), val = fields[i].Substring(eq + 1);
+                if (key == "money")
+                {
+                    long m;
+                    if (long.TryParse(val, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out m)) c.Money = m;
+                }
+                else if (key == "best")
+                {
+                    foreach (string item in val.Split(','))
+                    {
+                        int colon = item.IndexOf(':');
+                        if (colon <= 0) continue;
+                        string id = item.Substring(0, colon), g = item.Substring(colon + 1);
+                        if (OrderBook.ById(id) == null || Array.IndexOf(Grades, g) < 0) continue;
+                        c._best[id] = g;
+                    }
+                }
+            }
+            return c;
         }
 
         private static int Rank(string g) { return Array.IndexOf(new[] { "F", "D", "C", "B", "A", "S" }, g); }

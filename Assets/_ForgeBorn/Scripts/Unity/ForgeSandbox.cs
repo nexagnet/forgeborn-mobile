@@ -68,7 +68,9 @@ namespace ForgeBorn.UnityLayer
 
         private SparkEffect _sparks;
         // Orders (D3): Free play when _order is null.
-        private readonly Career _career = new Career();
+        private Career _career = new Career();
+        /// <summary>False for capture, benchmark, batch and edit-mode test runs so they never touch the player's career file.</summary>
+        private bool _persistCareer;
         private Order _order;
         private int _orderIndex = -1;
         private bool _delivered;
@@ -95,6 +97,7 @@ namespace ForgeBorn.UnityLayer
         private Text _speedBtn, _reportBtn, _nextBtn;
         private float _pulse;
 
+        private static string CareerPath => Path.Combine(Application.persistentDataPath, "career.txt");
         private static string SavePath => Path.Combine(Application.persistentDataPath, "weapon_slot1.fbws");
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -193,6 +196,8 @@ namespace ForgeBorn.UnityLayer
             if (_initialized) return;
             _initialized = true;
             _settings = GameSettings.Load();
+            _persistCareer = !Application.isBatchMode && !AutomationRequested() && Application.isPlaying;
+            if (_persistCareer) LoadCareer();
             _profile = PlatformProfile.Current;
             Application.targetFrameRate = _profile.TargetFps;
             if (PlayerPrefs.HasKey(GameSettings.PrefsKey)) _settings.Apply(); // only once the player has saved settings: do not fight the window default
@@ -956,6 +961,7 @@ namespace ForgeBorn.UnityLayer
             BladeReport rep = _session.Evaluate(_order.Spec);
             OrderResult res = OrderBook.Settle(_order, rep);
             _career.Apply(_order, res);
+            SaveCareer();
             _delivered = true;
             var sb = new System.Text.StringBuilder();
             sb.Append(res.Delivered ? "DELIVERED  grade " + res.Grade + "  paid " + res.Payout + "  (net " + res.Net + ")" : "NOT ACCEPTED  net " + res.Net);
@@ -982,6 +988,25 @@ namespace ForgeBorn.UnityLayer
             NewWeapon();
             _env = ForgeEnv.Air;
             _status = _blankIndex == 0 ? "new tapered blank" : "new beveled bar";
+        }
+
+        private void SaveCareer()
+        {
+            if (!_persistCareer) return;
+            try
+            {
+                string tmp = CareerPath + ".tmp";
+                File.WriteAllText(tmp, _career.Serialize());
+                if (File.Exists(CareerPath)) File.Delete(CareerPath);
+                File.Move(tmp, CareerPath);
+            }
+            catch (System.Exception e) { UnityEngine.Debug.LogWarning("Career save failed: " + e.Message); }
+        }
+
+        private void LoadCareer()
+        {
+            try { if (File.Exists(CareerPath)) _career = Career.Parse(File.ReadAllText(CareerPath)); }
+            catch (System.Exception e) { UnityEngine.Debug.LogWarning("Career load failed: " + e.Message); }
         }
 
         private void Save()
