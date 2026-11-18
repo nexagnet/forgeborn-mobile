@@ -39,3 +39,19 @@ Ghi lại các lỗi thật đã gặp khi dựng dự án, kèm cách xử lý.
 |---|---|
 | Test FastSwipe lệch 9.6% (>5%) | Giảm `MaxStepM` từ 1.5 mm xuống 0.5 mm. |
 | Test MultipleSwipes tạo vòng tự cắt (rollback giao dịch) | Thêm `StationSelfIntersects` và back-off nửa bước tối đa 6 lần; nếu vẫn lỗi thì hoàn tác trạm đó. |
+
+## Hoãn tới P6 (điện thoại)
+Các mục "Đang mở" về iPhone/Android ở đầu file đã hoãn, không còn là việc hiện hành. Sự thật cần nhớ khi quay lại:
+
+| Điều | Hệ quả |
+|---|---|
+| Unity Remote chạy game trên PC; iPhone chỉ nhận hình nén và gửi cảm ứng | Remote kiểm chứng thao tác và logic, không kiểm chứng FPS, nhiệt, bộ nhớ, shader Metal |
+| Windows cần iTunes (Apple Mobile Device) và cáp USB; iPhone không có trong danh sách Device, dùng menu `ForgeBorn > Set Remote iPhone` | Bước cài môi trường |
+| Remote 5 không hỗ trợ Input System mới | Giữ Input Manager cũ (`Input.touches`) sau `IPointerSource` |
+| iPhone từ bản 11 không có Force Touch | Áp lực mài là nút/phím, lượng tử 5 N, không lấy từ cảm ứng |
+| Build iOS cần macOS + Xcode + Apple Developer; build Android IL2CPP từng dừng ở ~45%, chưa có máy Android | Mốc thiết bị thật bị chặn tới khi có phần cứng |
+
+## Mở cho PC
+| Vấn đề | Trạng thái |
+|---|---|
+| Đổi sang không gian màu Linear (2026-11-18) | Ảnh chuẩn trong `docs/shots/` được chụp khi còn Gamma; cần chụp lại và chỉnh bloom ở P0.5/P1 |

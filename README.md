@@ -1,13 +1,17 @@
-# FORGEBORN MOBILE
+# FORGEBORN
 
-Mobile (iOS + Android) weapon-forging simulator. Spec: `docs/TECHNICAL_DESIGN.md`. Plan: `docs/IMPLEMENTATION_PLAN.md`.
+Game mô phỏng rèn vũ khí (Unity 6.3 LTS). Hiện làm **bản Windows trước**, điện thoại sau.
 
-## Headless domain tests (no Unity needed)
+## Đọc theo thứ tự
+
+1. [`docs/HANDOVER.md`](docs/HANDOVER.md): game đang ở đâu, cách dựng môi trường, bước tiếp theo.
+2. [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md): lộ trình duy nhất (P0 đến P6).
+3. [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md): thiết kế game.
+
+Tham khảo khi cần: `docs/TECHNICAL_DESIGN.md` (thiết kế gốc, hướng di động), `docs/DEVICE_MATRIX.md` (bằng chứng đã kiểm), `docs/KNOWN_ISSUES.md` (lỗi và hạn chế), `docs/BENCHMARKS.md`, `docs/CREDITS.md`, `docs/adr/`.
+
+## Chạy test không cần Unity
+
 ```
 dotnet test build/ForgeBorn.Domain.Tests
 ```
-
-## Unity
-Open the repo root with Unity 6.3 LTS (not installed on the dev PC yet; see docs/IMPLEMENTATION_PLAN.md).
-
-Status per platform: Editor - not started; Android device - not verified; iOS Xcode - not verified; iPhone - not verified.

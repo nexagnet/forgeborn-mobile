@@ -70,10 +70,11 @@ Mỗi trạm là một chế độ của cùng một cảnh, chuyển bằng tha
 
 ## 8. Phân nền tảng
 
-- iPhone là thiết bị phát triển duy nhất (Unity Remote 5): chỉ thấy hình, hiệu năng thấy là của PC.
-- Tối ưu theo `PlatformProfile`: tầng chất lượng, số hạt tia lửa, bloom, độ phân giải texture (mobile giới hạn 1024 px, ASTC 6x6).
-- Haptics: iOS cần CoreHaptics qua build native (cần Mac); hiện là placeholder.
-- Android: cùng mã, chưa có thiết bị nên không khẳng định gì.
+- **PC (Windows) làm trước** (xem `IMPLEMENTATION_PLAN.md`): bố cục ngang 16:9, chuột và bàn phím. Điện thoại làm sau cổng P5.
+- Tối ưu theo `PlatformProfile`: tầng chất lượng, số hạt tia lửa, bloom, độ phân giải texture. Mục tiêu PC thấp nhất là Intel UHD.
+- Điện thoại (hoãn): haptics iOS cần CoreHaptics qua build native (cần Mac); Android chưa có thiết bị nên không khẳng định gì.
+
+> Các mục §3, §4 và §12 bên dưới viết cho màn hình dọc cảm ứng. Bản ngang cho PC sẽ được thiết kế lại ở P0.5 (mục UI ngang cuối file này).
 
 ## 9. Cột mốc thiết kế
 

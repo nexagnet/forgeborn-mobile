@@ -1,5 +1,7 @@
 # FORGEBORN MOBILE — TECHNICAL DESIGN DOCUMENT (TDD)
 
+> **Bản gốc hướng di động (2026-11-17).** Lộ trình hiện hành là PC trước, xem `IMPLEMENTATION_PLAN.md`. Giữ file này làm tham chiếu kiến trúc; các phần về iOS/Android/cảm ứng dọc áp dụng ở giai đoạn P6.
+
 **Version:** 3.0 — Mobile production architecture  
 **Status:** Implementation specification; not an implemented product  
 **Language:** Vietnamese (source code identifiers in English)  

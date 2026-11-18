@@ -4,7 +4,7 @@ Only facts observed on this project are marked OK. Evidence labels are never mer
 
 | Evidence | Status | Detail |
 |---|---|---|
-| Domain test (`dotnet test`, headless) | OK | 54/54 on .NET 8, Windows 11 (frame/twist, hammer, thermal, evaluation goldens, schema 2). Not yet independently reviewed |
+| Domain test (`dotnet test`, headless) | OK | 63/63 on .NET 8 (2026-11-18), Windows 11 (frame/twist, hammer, thermal, evaluation goldens, schema 2). Not yet independently reviewed |
 | Domain microbenchmark (PC estimate) | Measured on PC only | See `docs/BENCHMARKS.md`; default detail grind frame ~2.6 ms on i7-10610U. Not device performance |
 | Unity EditMode tests | OK | 33/33 headless (gồm 5 test âm thanh, 6 test hướng dẫn người chơi, có một test chạy ngưỡng hướng dẫn trên mô hình nhiệt thật, 4 test hơi nước tôi) (`Unity.exe -batchmode -runTests`) on 6000.3.28f1: mesh vs Domain incl. bent/twisted blade, heat glow/oxide/crack colours, platform profile, sandbox rules, report text |
 | Editor-render (headless, PC Intel UHD, 540x1170) | Reviewed on 4 renders in `docs/shots/` | `ForgeBornCapture` renders scripted states without the Editor window: heat glow gradient, hammer bulge, tempering oxide tint, report panel, HUD layout at iPhone dp scale, sparks. It also drives a synthetic finger drag and screen hammer blow through the real camera-ray input path (44.5 g removed, hit=true) and exits non-zero if that breaks. Real touch/haptics NOT covered. PC GPU image, not an iPhone image |
