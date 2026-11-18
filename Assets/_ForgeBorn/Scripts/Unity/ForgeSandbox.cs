@@ -329,7 +329,7 @@ namespace ForgeBorn.UnityLayer
                     case KeyAction.SpeedDown: _speedIndex = DesktopKeys.StepIndex(_speedIndex, -1, SandboxRules.TimeScales.Length); break;
                     case KeyAction.SpeedUp: _speedIndex = DesktopKeys.StepIndex(_speedIndex, 1, SandboxRules.TimeScales.Length); break;
                     case KeyAction.NextStation: GoStation(DesktopKeys.Next(_station)); break;
-                    case KeyAction.Pause: _paused = !_paused; Time.timeScale = _paused ? 0f : 1f; _status = _paused ? "paused (Esc to resume)" : ""; break;
+                    case KeyAction.Pause: SetPaused(!_paused); break;
                     default:
                         Station s;
                         if (DesktopKeys.TryStation(a, out s)) GoStation(s);
@@ -369,6 +369,68 @@ namespace ForgeBorn.UnityLayer
             KeyCode.LeftBracket, KeyCode.RightBracket, KeyCode.Minus, KeyCode.KeypadMinus, KeyCode.Equals, KeyCode.KeypadPlus,
             KeyCode.Tab, KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Escape,
         };
+
+        private GameObject _pausePanel;
+        private Text _volumeLabel;
+
+        public void SetPaused(bool paused)
+        {
+            _paused = paused;
+            Time.timeScale = paused ? 0f : 1f;
+            if (_pausePanel != null) _pausePanel.SetActive(paused);
+            if (paused) _audio.SetGrind(0f, 0f);
+            _hasPrev = false;
+            _hasScreenPrev = false;
+        }
+
+        private static void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        private void ChangeVolume(float delta)
+        {
+            AudioListener.volume = Mathf.Clamp01(AudioListener.volume + delta);
+            if (_volumeLabel != null) _volumeLabel.text = "Volume " + Mathf.RoundToInt(AudioListener.volume * 100f) + "%";
+        }
+
+        /// <summary>Full-screen dim layer that blocks the pointer, with a centred box: Resume, Fullscreen, Volume, Quit.</summary>
+        private void BuildPausePanel(RectTransform safe)
+        {
+            _pausePanel = new GameObject("PausePanel", typeof(RectTransform), typeof(Image));
+            var dim = _pausePanel.GetComponent<RectTransform>();
+            dim.SetParent(safe, false);
+            dim.anchorMin = Vector2.zero;
+            dim.anchorMax = Vector2.one;
+            dim.offsetMin = dim.offsetMax = Vector2.zero;
+            _pausePanel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f); // raycastTarget stays on: blocks the HUD behind it
+
+            var box = new GameObject("Box", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
+            box.SetParent(dim, false);
+            box.anchorMin = new Vector2(0.36f, 0.22f);
+            box.anchorMax = new Vector2(0.64f, 0.78f);
+            box.offsetMin = box.offsetMax = Vector2.zero;
+            box.GetComponent<Image>().color = new Color(0.08f, 0.08f, 0.1f, 0.96f);
+
+            Text title = MakeText(box, "Title", 36, TextAnchor.MiddleCenter, new Vector2(0f, 0.84f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+            title.text = "PAUSED";
+            title.color = new Color(1f, 0.72f, 0.3f);
+
+            const float h = 0.13f, gap = 0.03f;
+            float y = 0.82f - h;
+            MakeButton(box, "Resume", new Vector2(0.1f, y), new Vector2(0.9f, y + h), () => SetPaused(false)); y -= h + gap;
+            MakeButton(box, "Fullscreen", new Vector2(0.1f, y), new Vector2(0.9f, y + h), () => Screen.fullScreenMode = Screen.fullScreen ? FullScreenMode.Windowed : FullScreenMode.FullScreenWindow); y -= h + gap;
+            MakeButton(box, "Volume -", new Vector2(0.1f, y), new Vector2(0.48f, y + h), () => ChangeVolume(-0.1f));
+            MakeButton(box, "Volume +", new Vector2(0.52f, y), new Vector2(0.9f, y + h), () => ChangeVolume(0.1f)); y -= h + gap;
+            _volumeLabel = MakeText(box, "VolumeText", 22, TextAnchor.MiddleCenter, new Vector2(0.1f, y), new Vector2(0.9f, y + h), Vector2.zero, Vector2.zero);
+            _volumeLabel.text = "Volume " + Mathf.RoundToInt(AudioListener.volume * 100f) + "%"; y -= h + gap;
+            MakeButton(box, "Quit", new Vector2(0.1f, y), new Vector2(0.9f, y + h), QuitGame);
+            _pausePanel.SetActive(false);
+        }
 
         private void GoStation(Station s)
         {
@@ -693,6 +755,8 @@ namespace ForgeBorn.UnityLayer
             img.raycastTarget = false;
             _reportText = MakeText(prt, "ReportText", 18, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
             _reportPanel.SetActive(false);
+            BuildPausePanel(safe); // last child, so it draws over everything
+
         }
 
         private void BuildTutorialPanel(RectTransform safe)
