@@ -46,9 +46,17 @@ namespace ForgeBorn.UnityLayer
         private uint _rng = 2463534242u;
         private double _sampleRate = 48000.0;
 
+        private AudioSource _oneShot;
+        private AudioClip _hammerHit;
+
         public void Setup()
         {
             _sampleRate = AudioSettings.outputSampleRate;
+            // Real recording (CC0, see docs/CREDITS.md) layered over the synthesized clank; absent file falls back to synthesis only.
+            _hammerHit = Resources.Load<AudioClip>("Audio/hammer_hit");
+            _oneShot = gameObject.AddComponent<AudioSource>();
+            _oneShot.spatialBlend = 0f;
+            _oneShot.playOnAwake = false;
             var src = gameObject.AddComponent<AudioSource>();
             src.clip = AudioClip.Create("fb_silence", 4800, 1, 48000, false);
             src.loop = true;
@@ -69,6 +77,12 @@ namespace ForgeBorn.UnityLayer
         {
             _impactFreq = Mathf.Lerp(420f, 180f, Mathf.Clamp01(hot01)) * Mathf.Lerp(1.15f, 0.9f, Mathf.Clamp01(energy01));
             _impactEnv = Mathf.Lerp(0.35f, 0.9f, Mathf.Clamp01(energy01));
+            if (_hammerHit != null && _oneShot != null)
+            {
+                // Hot, soft metal rings lower; harder blows are louder.
+                _oneShot.pitch = Mathf.Lerp(1.08f, 0.86f, Mathf.Clamp01(hot01)) * Random.Range(0.97f, 1.03f);
+                _oneShot.PlayOneShot(_hammerHit, Mathf.Lerp(0.45f, 1f, Mathf.Clamp01(energy01)));
+            }
         }
 
         private float Noise()

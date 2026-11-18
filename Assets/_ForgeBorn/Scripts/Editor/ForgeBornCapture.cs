@@ -63,6 +63,12 @@ namespace ForgeBorn.EditorTools
             sb.CaptureShowReport(true, ToolMode.Grind);
             Shot(sb, cam, dir, "06_tempered_with_report");
 
+            // Order flow: deliver the (ungrounded, quenched, tempered) blade to the journeyman client. Expected: rejected, with reasons.
+            sb.CaptureSetOrder(1);
+            sb.CaptureDeliver();
+            Shot(sb, cam, dir, "08_order_rejected_with_reasons");
+            sb.CaptureShowReport(false, ToolMode.Grind);
+
             // Input-path verification: synthetic screen points through the real camera-ray -> blade space -> Domain pipeline.
             // Screen coordinates are pixels of the render texture (bottom-left origin); the blade is centred at x = W/2.
             var rayRt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);

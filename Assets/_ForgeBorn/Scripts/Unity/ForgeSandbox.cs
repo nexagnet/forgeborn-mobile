@@ -5,6 +5,7 @@ using ForgeBorn.Domain.Commands;
 using ForgeBorn.Domain.Evaluation;
 using ForgeBorn.Domain.Geometry;
 using ForgeBorn.Domain.Material;
+using ForgeBorn.Domain.Orders;
 using ForgeBorn.Domain.Persistence;
 using ForgeBorn.Domain.Session;
 using UnityEngine;
@@ -63,6 +64,13 @@ namespace ForgeBorn.UnityLayer
         private float _lastStrikeTime = -10f;
 
         private SparkEffect _sparks;
+        // Orders (D3): Free play when _order is null.
+        private readonly Career _career = new Career();
+        private Order _order;
+        private int _orderIndex = -1;
+        private bool _delivered;
+        private string _resultText;
+        private Text _orderBtn, _deliverBtn;
         private SteamEffect _steam;
         private readonly Vector3[] _steamPoints = new Vector3[12];
         private SandboxAudio _audio;
@@ -575,8 +583,8 @@ namespace ForgeBorn.UnityLayer
 
             _speedLabel = MakeButton(safe, 0, 4, 3, "x1", CycleSpeed);
             _speedBtn = _speedLabel;
-            MakeButton(safe, 1, 4, 3, "New blank", NewBlank);
-            MakeButton(safe, 2, 4, 3, "Reset view", () => { ResetView(); _camY = BaseCamY; PoseCamera(); });
+            _orderBtn = MakeButton(safe, 1, 4, 3, "Order", CycleOrder);
+            _deliverBtn = MakeButton(safe, 2, 4, 3, "Deliver", Deliver);
             MakeButton(safe, 3, 4, 3, "Guide", () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); });
             BuildTutorialPanel(safe);
 
@@ -584,8 +592,8 @@ namespace ForgeBorn.UnityLayer
             _reportPanel = new GameObject("ReportPanel", typeof(RectTransform), typeof(Image));
             var prt = _reportPanel.GetComponent<RectTransform>();
             prt.SetParent(safe, false);
-            prt.anchorMin = new Vector2(0.04f, 0.5f);
-            prt.anchorMax = new Vector2(0.96f, 0.7f);
+            prt.anchorMin = new Vector2(0.04f, 0.36f);
+            prt.anchorMax = new Vector2(0.96f, 0.66f);
             prt.offsetMin = prt.offsetMax = Vector2.zero;
             var img = _reportPanel.GetComponent<Image>();
             img.color = new Color(0.05f, 0.06f, 0.08f, 0.7f);
@@ -602,8 +610,8 @@ namespace ForgeBorn.UnityLayer
             rt.anchorMin = new Vector2(0f, 1f);
             rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(0.5f, 1f);
-            rt.offsetMin = new Vector2(8f, -226f);
-            rt.offsetMax = new Vector2(-8f, -82f);
+            rt.offsetMin = new Vector2(8f, -250f);
+            rt.offsetMax = new Vector2(-8f, -106f);
             var img = _tutPanel.GetComponent<Image>();
             img.color = new Color(0.07f, 0.06f, 0.05f, 0.86f);
             img.raycastTarget = false;
@@ -755,7 +763,11 @@ namespace ForgeBorn.UnityLayer
             _speedLabel.text = "x" + SandboxRules.F(SandboxRules.TimeScales[_speedIndex], 0);
             for (int i = 0; i < _envLabels.Length; i++)
                 _envLabels[i].color = (int)_env == i ? new Color(1f, 0.7f, 0.25f) : Color.white;
-            if (_showReport) _reportText.text = SandboxRules.FormatReport(_session.Evaluate(null));
+            if (_showReport)
+                _reportText.text = (_resultText != null ? _resultText + "\n\n" : "")
+                    + SandboxRules.FormatReport(_session.Evaluate(_order != null ? _order.Spec : null));
+            _infoText.text += "\n" + (_order == null ? "Free play" : "Order: " + _order.Title + (_order.MaxMassKg < double.MaxValue ? " (max " + SandboxRules.F(_order.MaxMassKg * 1000.0, 0) + " g)" : ""))
+                + "   Money " + _career.Money;
             UpdateTutorial();
         }
 
@@ -787,6 +799,53 @@ namespace ForgeBorn.UnityLayer
             _reportPanel.SetActive(_showReport);
             _hudTimer = 0f;
         }
+
+        /// <summary>Cycles Free play, then each unlocked order. Starting one gives a fresh blank.</summary>
+        private void CycleOrder()
+        {
+            IReadOnlyList<Order> all = OrderBook.All;
+            int next = _orderIndex + 1;
+            while (next < all.Count && !_career.IsUnlocked(all[next])) next++;
+            _orderIndex = next >= all.Count ? -1 : next;
+            _order = _orderIndex < 0 ? null : all[_orderIndex];
+            _delivered = false;
+            _resultText = null;
+            if (_order == null) { NewBlank(); return; }
+            NewWeapon();
+            _env = ForgeEnv.Air;
+            _status = "Order: " + _order.Client + ". " + _order.Brief;
+            _resultText = "ORDER " + _order.Title + " for " + _order.Client + "\n" + _order.Brief + "\nPays up to " + (long)System.Math.Round(_order.BasePay * OrderBook.GradeFactor("S"))
+                + ", blank costs " + _order.BlankCost + ". Needs score " + SandboxRules.F(_order.Spec.PassScore, 0) + "+.";
+            if (!_showReport) ToggleReport();
+        }
+
+        /// <summary>Hands the blade to the client: scored against the order, paid or rejected, with reasons.</summary>
+        private void Deliver()
+        {
+            if (_order == null) { _status = "Pick an order first (Order button)."; return; }
+            if (_delivered) { _status = "Already delivered. Press Order for the next one."; return; }
+            BladeReport rep = _session.Evaluate(_order.Spec);
+            OrderResult res = OrderBook.Settle(_order, rep);
+            _career.Apply(_order, res);
+            _delivered = true;
+            var sb = new System.Text.StringBuilder();
+            sb.Append(res.Delivered ? "DELIVERED  grade " + res.Grade + "  paid " + res.Payout + "  (net " + res.Net + ")" : "NOT ACCEPTED  net " + res.Net);
+            foreach (string reason in res.Reasons) sb.Append("\n- ").Append(reason);
+            _resultText = sb.ToString();
+            _status = res.Delivered ? "Delivered: grade " + res.Grade : "Rejected";
+            if (!_showReport) ToggleReport();
+            _hudTimer = 0f;
+        }
+
+        public void CaptureSetOrder(int index)
+        {
+            _orderIndex = index;
+            _order = OrderBook.All[index];
+            _delivered = false;
+            _resultText = null;
+        }
+
+        public void CaptureDeliver() { Deliver(); RefreshHud(); }
 
         private void NewBlank()
         {
