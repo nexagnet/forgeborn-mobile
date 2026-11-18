@@ -306,8 +306,88 @@ namespace ForgeBorn.UnityLayer
 
         // ---------------------------------------------------------------- update / input
 
+        private Station _station = Station.Grinder;
+        private bool _paused;
+        private bool _rmbWasDown;
+        private Vector2 _rmbLast;
+
+        public bool Paused => _paused;
+
+        /// <summary>Keyboard shortcuts, wheel and right-drag (GAME_DESIGN §13). Ignored on touch-only devices where no keys arrive.</summary>
+        private void HandleDesktopInput()
+        {
+            foreach (KeyCode k in HandledKeys)
+            {
+                if (!Input.GetKeyDown(k)) continue;
+                KeyAction a = DesktopKeys.FromKey(k);
+                switch (a)
+                {
+                    case KeyAction.PressureDown: _pressureN = DesktopKeys.StepPressure(_pressureN, -1, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN); break;
+                    case KeyAction.PressureUp: _pressureN = DesktopKeys.StepPressure(_pressureN, 1, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN); break;
+                    case KeyAction.SpeedDown: _speedIndex = DesktopKeys.StepIndex(_speedIndex, -1, SandboxRules.TimeScales.Length); break;
+                    case KeyAction.SpeedUp: _speedIndex = DesktopKeys.StepIndex(_speedIndex, 1, SandboxRules.TimeScales.Length); break;
+                    case KeyAction.NextStation: GoStation(DesktopKeys.Next(_station)); break;
+                    case KeyAction.Pause: _paused = !_paused; Time.timeScale = _paused ? 0f : 1f; _status = _paused ? "paused (Esc to resume)" : ""; break;
+                    default:
+                        Station s;
+                        if (DesktopKeys.TryStation(a, out s)) GoStation(s);
+                        break;
+                }
+                _hudTimer = 0f;
+            }
+
+            float wheel = Input.mouseScrollDelta.y;
+            if (Mathf.Abs(wheel) > 0.01f && !IsOverUi(-1))
+            {
+                if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
+                    _pressureN = DesktopKeys.StepPressure(_pressureN, wheel > 0f ? 1 : -1, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN);
+                else
+                {
+                    _zoomIndex = DesktopKeys.StepIndex(_zoomIndex, wheel > 0f ? 1 : -1, ZoomSizes.Length);
+                    PoseCamera();
+                }
+                _hudTimer = 0f;
+            }
+
+            bool rmb = Input.GetMouseButton(1) && !IsOverUi(-1);
+            Vector2 mp = Input.mousePosition;
+            if (rmb && _rmbWasDown)
+            {
+                Vector2 delta = mp - _rmbLast;
+                _bladeRoot.Rotate(_bladeRoot.TransformDirection(Vector3.right), -delta.x * 0.4f, Space.World);
+                _camY = Mathf.Clamp(_camY - delta.y * ZoomSizes[_zoomIndex] * 2f / Screen.height, -0.6f, 0.6f);
+                PoseCamera();
+            }
+            _rmbWasDown = rmb;
+            _rmbLast = mp;
+        }
+
+        private static readonly KeyCode[] HandledKeys =
+        {
+            KeyCode.LeftBracket, KeyCode.RightBracket, KeyCode.Minus, KeyCode.KeypadMinus, KeyCode.Equals, KeyCode.KeypadPlus,
+            KeyCode.Tab, KeyCode.Alpha1, KeyCode.Alpha2, KeyCode.Alpha3, KeyCode.Alpha4, KeyCode.Alpha5, KeyCode.Alpha6, KeyCode.Escape,
+        };
+
+        private void GoStation(Station s)
+        {
+            _station = s;
+            ToolMode? tool = DesktopKeys.ToolFor(s);
+            if (tool.HasValue && tool.Value != _tool)
+            {
+                _tool = tool.Value;
+                _hasPrev = false;
+                _hasScreenPrev = false;
+                if (_tool != ToolMode.Inspect) ResetView();
+            }
+            ForgeEnv? env = DesktopKeys.EnvFor(s);
+            if (env.HasValue) _env = env.Value;
+            _status = "station " + ((int)s + 1) + ": " + s;
+        }
+
         private void Update()
         {
+            HandleDesktopInput();
+            if (_paused) return;
             Vector2 pos;
             int fingerId;
             bool down = TryGetPointer(out pos, out fingerId);
