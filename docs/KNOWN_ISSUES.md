@@ -60,4 +60,4 @@ Các mục "Đang mở" về iPhone/Android ở đầu file đã hoãn, không c
 | Lỗi đã sửa: `Handheld.Vibrate` không có trong bản Windows nên build lỗi CS0103 (`SandboxEffects.cs`) | Bọc `#if UNITY_IOS \|\| UNITY_ANDROID`; PC không rung |
 | `manage_build action=build` qua MCP làm mất job, Editor từng dừng | Dùng menu `ForgeBorn > Build Windows` (gọi qua `execute_code` + `delayCall`) |
 | Unity không tự nhập file mới tạo ngoài Editor (menu `ForgeBorn/Build Windows` không có) | Gọi `AssetDatabase.ImportAsset(..., ForceUpdate)` rồi `Refresh`, kiểm bằng cách tìm kiểu trong AppDomain |
-| Đổi sang không gian màu Linear (2026-11-18) | Ảnh chuẩn trong `docs/shots/` được chụp khi còn Gamma; cần chụp lại và chỉnh bloom ở P0.5/P1 |
+| Đổi sang không gian màu Linear (2026-11-18) | Đã xử lý: ảnh chuẩn trong `docs/shots/` chụp lại sau Linear, 1280x720, bố cục ngang. Bloom chưa chỉnh riêng; nhìn ảnh thì chấp nhận được, xét lại ở P4 |
