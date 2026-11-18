@@ -132,6 +132,24 @@ namespace ForgeBorn.Domain.Orders
         public long Money;
         private readonly Dictionary<string, string> _best = new Dictionary<string, string>();
 
+        private readonly HashSet<Upgrade> _owned = new HashSet<Upgrade>();
+
+        public bool Owns(Upgrade u) { return _owned.Contains(u); }
+
+        /// <summary>The shop opens after the first delivered order.</summary>
+        public bool ShopOpen => _best.Count > 0;
+
+        public BuyResult Buy(Upgrade u)
+        {
+            if (!ShopOpen) return BuyResult.ShopClosed;
+            if (_owned.Contains(u)) return BuyResult.AlreadyOwned;
+            long cost = Shop.Cost(u);
+            if (Money < cost) return BuyResult.NotEnoughMoney;
+            Money -= cost;
+            _owned.Add(u);
+            return BuyResult.Bought;
+        }
+
         public string BestGrade(string orderId) { string g; return _best.TryGetValue(orderId, out g) ? g : null; }
 
         public void Apply(Order order, OrderResult result)
@@ -161,7 +179,9 @@ namespace ForgeBorn.Domain.Orders
             ids.Sort(StringComparer.Ordinal);
             var parts = new List<string>();
             foreach (string id in ids) parts.Add(id + ":" + _best[id]);
-            return Magic + ";money=" + Money.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";best=" + string.Join(",", parts);
+            var ups = new List<string>();
+            foreach (Upgrade u in Shop.All) if (_owned.Contains(u)) ups.Add(Shop.Key(u));
+            return Magic + ";money=" + Money.ToString(System.Globalization.CultureInfo.InvariantCulture) + ";best=" + string.Join(",", parts) + ";up=" + string.Join(",", ups);
         }
 
         /// <summary>Never throws. Unknown version or garbage gives an empty career; bad entries are skipped, unknown keys ignored.</summary>
@@ -180,6 +200,14 @@ namespace ForgeBorn.Domain.Orders
                 {
                     long m;
                     if (long.TryParse(val, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out m)) c.Money = m;
+                }
+                else if (key == "up")
+                {
+                    foreach (string item in val.Split(','))
+                    {
+                        Upgrade u;
+                        if (Shop.TryParseKey(item, out u)) c._owned.Add(u);
+                    }
                 }
                 else if (key == "best")
                 {
