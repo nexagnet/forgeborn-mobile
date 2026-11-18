@@ -14,10 +14,24 @@ namespace ForgeBorn.EditorTools
     /// </summary>
     public static class ForgeBornCapture
     {
-        private const int W = 540, H = 1170; // portrait, iPhone-like aspect
+        // Landscape 16:9. Override with: -fb-size 1280x720
+        private static int W = 1920, H = 1080;
+
+        private static void ReadSizeArg()
+        {
+            string[] args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] != "-fb-size") continue;
+                string[] p = args[i + 1].ToLowerInvariant().Split('x');
+                int w, h;
+                if (p.Length == 2 && int.TryParse(p[0], out w) && int.TryParse(p[1], out h) && w >= 320 && h >= 240) { W = w; H = h; }
+            }
+        }
 
         public static void Run()
         {
+            ReadSizeArg();
             string dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../build/out/shots"));
             Directory.CreateDirectory(dir);
 
@@ -34,7 +48,12 @@ namespace ForgeBorn.EditorTools
                 canvas.worldCamera = cam;
                 canvas.planeDistance = 1f;
                 var scaler = canvas.GetComponent<CanvasScaler>();
-                if (scaler != null) scaler.scaleFactor = W / 390f; // emulate a 390 pt wide iPhone: UI sized in dp like on the device
+                if (scaler != null)
+                {
+                    // A render texture is not the Screen, so ScaleWithScreenSize would use the window size: scale to the reference by hand.
+                    scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+                    scaler.scaleFactor = Mathf.Min(W / 1920f, H / 1080f) * 0.5f + Mathf.Max(W / 1920f, H / 1080f) * 0.5f;
+                }
             }
 
             Shot(sb, cam, dir, "01_cold_blank");
@@ -70,18 +89,18 @@ namespace ForgeBorn.EditorTools
             sb.CaptureShowReport(false, ToolMode.Grind);
 
             // Input-path verification: synthetic screen points through the real camera-ray -> blade space -> Domain pipeline.
-            // Screen coordinates are pixels of the render texture (bottom-left origin); the blade is centred at x = W/2.
+            // Screen coordinates are pixels of the render texture (bottom-left origin); the blade lies along the horizontal centre line.
             var rayRt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);
             cam.targetTexture = rayRt;
             sb.CaptureShowReport(false, ToolMode.Grind);
-            double removedKg = sb.CaptureGrindDrag(new Vector2(W * 0.5f, 520f), new Vector2(W * 0.5f, 700f), 40, 0.016f);
+            double removedKg = sb.CaptureGrindDrag(new Vector2(W * 0.40f, H * 0.5f), new Vector2(W * 0.60f, H * 0.5f), 40, 0.016f);
             Debug.Log("[Capture] grind drag removed " + (removedKg * 1000.0) + " g");
             sb.CaptureSimulateSparks(0.12f);
             Shot(sb, cam, dir, "07_after_grind_drag_with_sparks");
 
             cam.targetTexture = rayRt;
             sb.CaptureSetTool(ToolMode.Hammer);
-            sb.CaptureHammerScreen(new Vector2(W * 0.5f, 800f));
+            sb.CaptureHammerScreen(new Vector2(W * 0.5f, H * 0.5f));
             HammerResult screenHit = sb.LastHammer;
             Debug.Log("[Capture] screen hammer hit=" + (screenHit != null && screenHit.Hit));
             Object.DestroyImmediate(rayRt);

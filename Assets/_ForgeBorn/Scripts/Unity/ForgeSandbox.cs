@@ -29,8 +29,10 @@ namespace ForgeBorn.UnityLayer
         private const double WheelRpm = 3000.0;
         private const float PressureStepN = 10f;
         private const float ThermalTickS = 0.25f;
-        private static readonly float[] ZoomSizes = { 0.78f, 0.39f, 0.2f };
-        private const float BaseCamY = -0.15f; // keeps the blade between the info text (top) and the button rows (bottom)
+        // Half-heights (m) of the view at the blade plane. 16:9 landscape: 0.34 shows ~1.2 m wide, the 0.8 m blade fills two thirds
+        // and clears the station column (left) and the readout panel (right).
+        private static readonly float[] ZoomSizes = { 0.34f, 0.17f, 0.09f };
+        private const float BaseCamY = 0f;
 
         private float _pressureN = 80f;
 
@@ -257,8 +259,8 @@ namespace ForgeBorn.UnityLayer
 
         private void ResetView()
         {
-            // Blade length (+X local) points up on the portrait screen; flat face toward the camera.
-            _bladeRoot.SetPositionAndRotation(new Vector3(0f, -(float)BladeLengthM * 0.5f, 0f), Quaternion.Euler(0f, 0f, 90f));
+            // Landscape: blade length (+X local) runs left to right across the screen, centred; flat face toward the camera.
+            _bladeRoot.SetPositionAndRotation(new Vector3(-(float)BladeLengthM * 0.5f, 0f, 0f), Quaternion.identity);
         }
 
         private void NewWeapon()
@@ -623,15 +625,16 @@ namespace ForgeBorn.UnityLayer
             if (EventSystem.current == null)
                 new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
 
-            // Scale from the real pixel width (390 pt reference, like the capture), not from Screen.dpi: under Unity Remote the dpi is the phone's
-            // but the Game view size is the editor's, which made every control about twice too big and the tutorial panel cover the buttons.
-            float dpScale = Mathf.Max(1f, Mathf.Min(Screen.width, Screen.height) / 390f);
+            // Landscape 16:9 reference 1920x1080 (GAME_DESIGN §13). Matching half width / half height keeps 4:3 windows
+            // and ultrawide usable; the blade is never stretched because only the HUD scales.
             var canvasGo = new GameObject("HUD", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGo.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasGo.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize; // 1 canvas unit = 1 dp
-            scaler.scaleFactor = dpScale;
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
 
             var safe = new GameObject("SafeArea", typeof(RectTransform)).GetComponent<RectTransform>();
             safe.SetParent(canvasGo.transform, false);
@@ -640,46 +643,55 @@ namespace ForgeBorn.UnityLayer
             safe.anchorMax = new Vector2(sa.xMax / Screen.width, sa.yMax / Screen.height);
             safe.offsetMin = safe.offsetMax = Vector2.zero;
 
-            _infoText = MakeText(safe, "Info", 17, TextAnchor.UpperLeft, new Vector2(0, 1), new Vector2(1, 1), new Vector2(12, -100), new Vector2(-12, -12));
-            _statusText = MakeText(safe, "Status", 13, TextAnchor.LowerLeft, new Vector2(0, 0), new Vector2(1, 0), new Vector2(12, 4 * 68 + 14), new Vector2(-12, 4 * 68 + 44));
+            // Readout panel top right, status line above the bottom bar.
+            _infoText = MakeText(safe, "Info", 22, TextAnchor.UpperLeft, new Vector2(0.72f, 0.70f), new Vector2(0.995f, 0.99f), Vector2.zero, Vector2.zero);
+            _statusText = MakeText(safe, "Status", 20, TextAnchor.LowerLeft, new Vector2(0.135f, 0.10f), new Vector2(0.995f, 0.15f), Vector2.zero, Vector2.zero);
 
-            // Row 0: tool / option / save / load. Row 1: pressure, zoom, report. Row 2: environments. Row 3: speed, new blank.
-            _toolLabel = MakeButton(safe, 0, 4, 0, "GRIND", CycleTool);
-            _optionLabel = MakeButton(safe, 1, 4, 0, "Wheel", CycleOption);
-            MakeButton(safe, 2, 4, 0, "Save", Save);
-            MakeButton(safe, 3, 4, 0, "Load", Load);
-
-            MakeButton(safe, 0, 4, 1, "Press -", () => _pressureN = Mathf.Max((float)SandboxRules.MinPressureN, _pressureN - PressureStepN));
-            MakeButton(safe, 1, 4, 1, "Press +", () => _pressureN = Mathf.Min((float)SandboxRules.MaxPressureN, _pressureN + PressureStepN));
-            MakeButton(safe, 2, 4, 1, "Zoom", CycleZoom);
-            _reportBtn = MakeButton(safe, 3, 4, 1, "Report", ToggleReport);
-
+            // Left column: tool, option, the five environments (stations 1-5), zoom.
+            const float colX0 = 0.005f, colX1 = 0.125f, rowH = 0.085f, rowStep = 0.095f, top = 0.99f;
+            int row = 0;
+            Vector2 ColMin(int r) { return new Vector2(colX0, top - r * rowStep - rowH); }
+            Vector2 ColMax(int r) { return new Vector2(colX1, top - r * rowStep); }
+            _toolLabel = MakeButton(safe, "GRIND", ColMin(row), ColMax(row), CycleTool); row++;
+            _optionLabel = MakeButton(safe, "Wheel", ColMin(row), ColMax(row), CycleOption); row++;
             _envLabels = new Text[5];
             string[] names = { "Air", "Furnace", "Water", "Oil", "Oven" };
             for (int i = 0; i < 5; i++)
             {
                 int idx = i;
-                _envLabels[i] = MakeButton(safe, i, 5, 2, names[i], () => { _env = (ForgeEnv)idx; _status = "environment: " + names[idx]; });
+                _envLabels[i] = MakeButton(safe, names[i], ColMin(row), ColMax(row), () => { _env = (ForgeEnv)idx; _status = "environment: " + names[idx]; });
+                row++;
             }
+            MakeButton(safe, "Zoom", ColMin(row), ColMax(row), CycleZoom);
 
-            _speedLabel = MakeButton(safe, 0, 4, 3, "x1", CycleSpeed);
+            // Bottom bar, nine buttons across.
+            const float barX0 = 0.135f, barW = 0.095f, barY0 = 0.01f, barY1 = 0.095f;
+            int slot = 0;
+            Vector2 BarMin() { return new Vector2(barX0 + slot * barW, barY0); }
+            Vector2 BarMax() { return new Vector2(barX0 + (slot + 1) * barW, barY1); }
+            MakeButton(safe, "Press -", BarMin(), BarMax(), () => _pressureN = DesktopKeys.StepPressure(_pressureN, -2, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN)); slot++;
+            MakeButton(safe, "Press +", BarMin(), BarMax(), () => _pressureN = DesktopKeys.StepPressure(_pressureN, 2, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN)); slot++;
+            _speedLabel = MakeButton(safe, "x1", BarMin(), BarMax(), CycleSpeed); slot++;
             _speedBtn = _speedLabel;
-            _orderBtn = MakeButton(safe, 1, 4, 3, "Order", CycleOrder);
-            _deliverBtn = MakeButton(safe, 2, 4, 3, "Deliver", Deliver);
-            MakeButton(safe, 3, 4, 3, "Guide", () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); });
+            _orderBtn = MakeButton(safe, "Order", BarMin(), BarMax(), CycleOrder); slot++;
+            _deliverBtn = MakeButton(safe, "Deliver", BarMin(), BarMax(), Deliver); slot++;
+            _reportBtn = MakeButton(safe, "Report", BarMin(), BarMax(), ToggleReport); slot++;
+            MakeButton(safe, "Guide", BarMin(), BarMax(), () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); }); slot++;
+            MakeButton(safe, "Save", BarMin(), BarMax(), Save); slot++;
+            MakeButton(safe, "Load", BarMin(), BarMax(), Load);
             BuildTutorialPanel(safe);
 
-            // Report panel (does not block touches).
+            // Report panel (does not block the pointer): below the blade, between the station column and the readout.
             _reportPanel = new GameObject("ReportPanel", typeof(RectTransform), typeof(Image));
             var prt = _reportPanel.GetComponent<RectTransform>();
             prt.SetParent(safe, false);
-            prt.anchorMin = new Vector2(0.04f, 0.36f);
-            prt.anchorMax = new Vector2(0.96f, 0.66f);
+            prt.anchorMin = new Vector2(0.14f, 0.16f);
+            prt.anchorMax = new Vector2(0.70f, 0.40f);
             prt.offsetMin = prt.offsetMax = Vector2.zero;
             var img = _reportPanel.GetComponent<Image>();
-            img.color = new Color(0.05f, 0.06f, 0.08f, 0.7f);
+            img.color = new Color(0.05f, 0.06f, 0.08f, 0.78f);
             img.raycastTarget = false;
-            _reportText = MakeText(prt, "ReportText", 13, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 8), new Vector2(-10, -8));
+            _reportText = MakeText(prt, "ReportText", 18, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
             _reportPanel.SetActive(false);
         }
 
@@ -688,21 +700,19 @@ namespace ForgeBorn.UnityLayer
             _tutPanel = new GameObject("TutorialPanel", typeof(RectTransform), typeof(Image));
             var rt = _tutPanel.GetComponent<RectTransform>();
             rt.SetParent(safe, false);
-            rt.anchorMin = new Vector2(0f, 1f);
-            rt.anchorMax = new Vector2(1f, 1f);
-            rt.pivot = new Vector2(0.5f, 1f);
-            rt.offsetMin = new Vector2(8f, -250f);
-            rt.offsetMax = new Vector2(-8f, -106f);
+            rt.anchorMin = new Vector2(0.135f, 0.79f);
+            rt.anchorMax = new Vector2(0.715f, 0.99f);
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
             var img = _tutPanel.GetComponent<Image>();
             img.color = new Color(0.07f, 0.06f, 0.05f, 0.86f);
             img.raycastTarget = false;
 
-            _tutStep = MakeText(rt, "Step", 12, TextAnchor.UpperRight, Vector2.zero, Vector2.one, new Vector2(8, 6), new Vector2(-8, -6));
+            _tutStep = MakeText(rt, "Step", 16, TextAnchor.UpperRight, Vector2.zero, Vector2.one, new Vector2(12, 8), new Vector2(-12, -8));
             _tutStep.color = new Color(0.7f, 0.7f, 0.7f);
-            _tutTitle = MakeText(rt, "Title", 16, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 6), new Vector2(-70, -6));
+            _tutTitle = MakeText(rt, "Title", 24, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 8), new Vector2(-90, -8));
             _tutTitle.color = new Color(1f, 0.72f, 0.3f);
-            _tutBody = MakeText(rt, "Body", 13, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(10, 40), new Vector2(-10, -28));
-            _tutWarn = MakeText(rt, "Warn", 13, TextAnchor.LowerLeft, Vector2.zero, Vector2.one, new Vector2(10, 6), new Vector2(-150, -6));
+            _tutBody = MakeText(rt, "Body", 19, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 56), new Vector2(-14, -40));
+            _tutWarn = MakeText(rt, "Warn", 18, TextAnchor.LowerLeft, Vector2.zero, Vector2.one, new Vector2(14, 8), new Vector2(-260, -8));
             _tutWarn.color = new Color(1f, 0.4f, 0.3f);
 
             // Next and Skip live on the panel (buttons block touches only where they are).
@@ -717,11 +727,11 @@ namespace ForgeBorn.UnityLayer
             rt.SetParent(panel, false);
             rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
             rt.pivot = new Vector2(1f, 0f);
-            rt.sizeDelta = new Vector2(66f, 30f);
-            rt.anchoredPosition = new Vector2(-8f - slot * 72f, 6f);
+            rt.sizeDelta = new Vector2(110f, 40f);
+            rt.anchoredPosition = new Vector2(-10f - slot * 120f, 8f);
             go.GetComponent<Image>().color = new Color(0.3f, 0.32f, 0.38f, 0.95f);
             go.GetComponent<Button>().onClick.AddListener(onClick);
-            Text t = MakeText(rt, "Label", 14, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Text t = MakeText(rt, "Label", 20, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             t.text = label;
             return t;
         }
@@ -804,20 +814,18 @@ namespace ForgeBorn.UnityLayer
             return t;
         }
 
-        private static Text MakeButton(RectTransform parent, int slot, int slots, int row, string label, UnityEngine.Events.UnityAction onClick)
+        private static Text MakeButton(RectTransform parent, string label, Vector2 aMin, Vector2 aMax, UnityEngine.Events.UnityAction onClick)
         {
             var go = new GameObject("Btn_" + label, typeof(RectTransform), typeof(Image), typeof(Button));
             var rt = go.GetComponent<RectTransform>();
             rt.SetParent(parent, false);
-            rt.anchorMin = new Vector2(slot / (float)slots, 0f);
-            rt.anchorMax = new Vector2((slot + 1) / (float)slots, 0f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            float y = 12f + row * 68f;
-            rt.offsetMin = new Vector2(4f, y);
-            rt.offsetMax = new Vector2(-4f, y + 60f);
+            rt.anchorMin = aMin;
+            rt.anchorMax = aMax;
+            rt.offsetMin = new Vector2(3f, 0f);
+            rt.offsetMax = new Vector2(-3f, 0f);
             go.GetComponent<Image>().color = new Color(0.25f, 0.27f, 0.32f, 0.95f);
             go.GetComponent<Button>().onClick.AddListener(onClick);
-            Text t = MakeText(rt, "Label", 15, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            Text t = MakeText(rt, "Label", 22, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             t.text = label;
             return t;
         }
