@@ -222,6 +222,7 @@ namespace ForgeBorn.UnityLayer
             A("That is the whole loop: order, heat, hammer, grind, harden, temper, deliver. Next orders pay more and ask for more.",
               "Đó là cả chu trình: nhận đơn, nung, rèn, mài, tôi, ram, giao. Các đơn sau trả nhiều hơn và đòi hỏi cao hơn.");
             A("Click Next to keep playing.", "Bấm Tiếp để chơi tiếp.");
+            A("Build", "Bản build");
             return d;
         }
     }

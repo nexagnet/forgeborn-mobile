@@ -165,6 +165,10 @@ namespace ForgeBorn.EditorTools
                 Shot(sb, cam, tdir, (i + 1).ToString("D2") + "_" + id);
             }
 
+            sb.CaptureTutorialStep("welcome", true);
+            sb.ShowMainMenu();
+            Shot(sb, cam, dir, "13_main_menu_build_stamp");
+
             bool ok = removedKg > 0.001 && screenHit != null && screenHit.Hit && facet.HasBevel && System.Math.Abs(facet.EdgeAngleDeg - 20.0) < 4.0;
             Debug.Log(ok ? "[Capture] INPUT PATH OK" : "[Capture] INPUT PATH FAILED");
             Debug.Log("[Capture] done: " + dir);

@@ -37,3 +37,7 @@ build/*.log
 build/*.xml
 
 
+
+# Build stamp (written before every build)
+Assets/_ForgeBorn/Resources/buildinfo.txt
+Assets/_ForgeBorn/Resources/buildinfo.txt.meta

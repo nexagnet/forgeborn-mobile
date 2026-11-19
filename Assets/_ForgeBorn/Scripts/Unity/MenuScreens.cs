@@ -119,6 +119,10 @@ namespace ForgeBorn.UnityLayer
             MakeButton(box, Loc.T("New game"), RowMin(1, 0.1f), RowMax(1, 0.9f), () => _actions.NewGame());
             MakeButton(box, Loc.T("Settings"), RowMin(2, 0.1f), RowMax(2, 0.9f), () => OpenSettings(true));
             MakeButton(box, Loc.T("Quit"), RowMin(3, 0.1f), RowMax(3, 0.9f), () => _actions.Quit());
+            // Which build is this? (the launcher's file time never changes, so show a stamp.)
+            Text stamp = MakeText(box, "BuildStamp", 22, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 0.09f), Vector2.zero, Vector2.zero);
+            stamp.text = BuildInfo.Label;
+            stamp.color = new Color(0.75f, 0.75f, 0.78f);
         }
 
         private void BuildPause(RectTransform safe)
