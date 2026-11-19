@@ -55,3 +55,15 @@ Not measured / known gaps:
 - 1920x1080 windowed: the run hung at start-up and was killed (this screen is only 1536x864); cause not investigated.
 - Thermal ticks (x600), the Low/Medium/High quality tiers, and any GPU other than Intel UHD.
 - An earlier run showed exactly 16.7 ms per idle frame because `ForgeSandbox.Initialize` re-applied its 60 fps target after the tool had removed the cap; fixed by removing the cap after warm-up. Only the corrected run is quoted above.
+
+## Windows build after the review fixes (2026-11-18, baseline for P4 shadows)
+
+`build\out\win\ForgeBorn.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0 -fb-benchmark 8`, Intel UHD (i7-10610U), D3D11, quality Ultra, vsync off, one run.
+Scene now has the FBX anvil, furnace and handle. The grind stroke changed (review M4): it now runs along the blade like `ForgeBornCapture`, so these grind numbers are **not comparable** with the table above.
+
+| Phase | Frames | Avg ms | p95 ms | Max ms | FPS (avg) |
+|---|---|---|---|---|---|
+| idle | 605 | 4.96 | 7.03 | 9.68 | 201.6 |
+| grind | 447 | 17.90 | 24.13 | 86.50 | 55.9 |
+
+Mass removed 199 g. Single run on a noisy machine: treat as a floor, not a spec.

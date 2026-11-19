@@ -18,6 +18,17 @@ namespace ForgeBorn.Tests
         }
 
         [Test]
+        public void AssistLevel_RoundTrips_DefaultsToLight_AndOldSettingsKeepIt()
+        {
+            Assert.AreEqual(1, new GameSettings().Assist);
+            Assert.AreEqual(2, GameSettings.Parse(new GameSettings { Assist = 2 }.Serialize()).Assist);
+            Assert.AreEqual(0, GameSettings.Parse(new GameSettings { Assist = 0 }.Serialize()).Assist);
+            Assert.AreEqual(1, GameSettings.Parse("v1;res=1;fs=0;tier=-1;vol=1.00;lang=1").Assist); // saved before the setting existed
+            Assert.AreEqual(2, GameSettings.Parse("v1;assist=9").Assist);
+            Assert.AreEqual(0, GameSettings.Parse("v1;assist=-4").Assist);
+        }
+
+        [Test]
         public void GarbageAndOutOfRangeFallBackSafely()
         {
             GameSettings d = GameSettings.Parse(null);

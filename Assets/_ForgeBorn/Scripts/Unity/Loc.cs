@@ -28,8 +28,17 @@ namespace ForgeBorn.UnityLayer
 
         public static string F(string template, params object[] args)
         {
-            return string.Format(CultureInfo.InvariantCulture, T(template), args);
+            try { return string.Format(CultureInfo.InvariantCulture, T(template), args); }
+            catch (System.FormatException)
+            {
+                // A bad translation must never crash the game: fall back to the English source.
+                try { return string.Format(CultureInfo.InvariantCulture, template, args); }
+                catch (System.FormatException) { return template; }
+            }
         }
+
+        /// <summary>All Vietnamese entries (source, translation), for the whole-table test.</summary>
+        public static IEnumerable<KeyValuePair<string, string>> VietnameseEntries { get { return Vi; } }
 
         /// <summary>True if the table has a Vietnamese entry for this source string (used by completeness tests).</summary>
         public static bool HasVietnamese(string en) { return Vi.ContainsKey(en); }

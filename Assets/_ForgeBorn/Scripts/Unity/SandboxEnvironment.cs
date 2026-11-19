@@ -21,11 +21,11 @@ namespace ForgeBorn.UnityLayer
         public const float SideOffset = 0.16f;
 
         /// <summary>Camera pose for a framing half-height (m at the blade plane) and vertical look-at height.</summary>
-        public static void PoseCamera(Transform cam, float halfHeightM, float lookY)
+        public static void PoseCamera(Transform cam, float halfHeightM, float lookY, float lookX = 0f)
         {
             float dist = halfHeightM / Mathf.Tan(0.5f * FovDeg * Mathf.Deg2Rad);
             float side = SideOffset * (dist / BaseDistance);
-            cam.position = new Vector3(side, lookY, -dist);
+            cam.position = new Vector3(side + lookX, lookY, -dist); // lookX pans along the blade; the view direction keeps its fixed side tilt
             cam.rotation = Quaternion.LookRotation(new Vector3(-side, 0f, dist), Vector3.up);
         }
 

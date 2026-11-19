@@ -32,7 +32,7 @@ namespace ForgeBorn.UnityLayer
         private const float ThermalTickS = 0.25f;
         // Half-heights (m) of the view at the blade plane. 16:9 landscape: 0.34 shows ~1.2 m wide, the 0.8 m blade fills two thirds
         // and clears the station column (left) and the readout panel (right).
-        private static readonly float[] ZoomSizes = { 0.34f, 0.17f, 0.09f };
+        private static readonly float[] ZoomSizes = { SandboxProps.ViewHalfHeightM, 0.17f, 0.09f };
         private const float BaseCamY = 0f;
 
         private float _pressureN = 80f;
@@ -141,6 +141,7 @@ namespace ForgeBorn.UnityLayer
         public void CaptureHammerScreen(Vector2 pos)
         {
             _lastStrikeTime = -10f;
+            _coldArmTime = Time.time; // the capture strikes a cold blade on purpose: skip the "click again" confirmation
             HammerStrike(pos);
         }
 
@@ -164,7 +165,14 @@ namespace ForgeBorn.UnityLayer
         /// <summary>Runs the thermal model for simSeconds in the given environment and refreshes visuals (no real-time wait).</summary>
         public void CaptureThermal(ForgeEnv env, double simSeconds)
         {
+            if (_prevTemps == null || _prevTemps.Length != _session.Profile.StationCount) _prevTemps = new double[_session.Profile.StationCount];
+            System.Array.Copy(_session.Profile.TempK, _prevTemps, _prevTemps.Length);
             ThermalResult r = _session.ApplyThermal(new ThermalCommand(0, SandboxRules.EnvFor(env), simSeconds));
+            if (r.Accepted && (env == ForgeEnv.Water || env == ForgeEnv.Oil) && simSeconds > 0.0)
+            {
+                _quench = QuenchMonitor.Assess(_session.Profile, _session.Material, _prevTemps, simSeconds);
+                _quenchStamp = Time.unscaledTime;
+            }
             _env = env;
             _status = r.Accepted ? "thermal " + env + " " + SandboxRules.F(simSeconds, 0) + " s" : "thermal rejected: " + r.Reason;
             _builder.RefreshState();
@@ -200,11 +208,16 @@ namespace ForgeBorn.UnityLayer
             if (Application.isPlaying) Loc.Current = _settings.ResolveLanguage();
             _persistCareer = !Application.isBatchMode && !AutomationRequested() && Application.isPlaying;
             if (_persistCareer) LoadCareer();
+            // First time ever: the guide cannot be skipped until it has been completed once (stored in PlayerPrefs).
+            _tutorial.Mandatory = _persistCareer && PlayerPrefs.GetInt(TutorialFlow.DonePrefsKey, 0) == 0;
             _profile = PlatformProfile.Current;
             Application.targetFrameRate = _profile.TargetFps;
             if (PlayerPrefs.HasKey(GameSettings.PrefsKey)) _settings.Apply(); // only once the player has saved settings: do not fight the window default
 #if UNITY_IOS || UNITY_ANDROID
-            Screen.orientation = ScreenOrientation.Portrait;
+            // The HUD is laid out for a landscape 16:9 screen (left station column, readouts on the right): hold the phone sideways.
+            Screen.autorotateToPortrait = Screen.autorotateToPortraitUpsideDown = false;
+            Screen.autorotateToLandscapeLeft = Screen.autorotateToLandscapeRight = true;
+            Screen.orientation = ScreenOrientation.AutoRotation;
 #endif
             BuildScene();
             NewWeapon();
@@ -245,6 +258,7 @@ namespace ForgeBorn.UnityLayer
             _meshFilter = root.AddComponent<MeshFilter>();
             var mr = root.AddComponent<MeshRenderer>();
             mr.sharedMaterial = CreateBladeMaterial();
+            SandboxProps.AttachHandle(_bladeRoot, RenderSettings.customReflectionTexture); // grip and guard follow the blade
         }
 
         private Material CreateBladeMaterial()
@@ -266,13 +280,30 @@ namespace ForgeBorn.UnityLayer
 
         private void PoseCamera()
         {
-            SandboxEnvironment.PoseCamera(_cam.transform, ZoomSizes[_zoomIndex], _camY);
+            SandboxEnvironment.PoseCamera(_cam.transform, ZoomSizes[_zoomIndex], _camY, _camX);
+        }
+
+        private float _camX;
+
+        /// <summary>Pan the camera by a screen-pixel drag or a world step (metres at the blade plane); clamped so the blade stays in view.</summary>
+        private void PanCamera(float dxM, float dyM)
+        {
+            _camX = Mathf.Clamp(_camX + dxM, -0.7f, 0.7f);
+            _camY = Mathf.Clamp(_camY + dyM, -0.6f, 0.6f);
+            PoseCamera();
         }
 
         private void ResetView()
         {
+            _flipped = false;
             // Landscape: blade length (+X local) runs left to right across the screen, centred; flat face toward the camera.
             _bladeRoot.SetPositionAndRotation(new Vector3(-(float)BladeLengthM * 0.5f, 0f, 0f), Quaternion.identity);
+            if (_camY != BaseCamY || _camX != 0f)
+            {
+                _camY = BaseCamY;
+                _camX = 0f;
+                if (_cam != null) PoseCamera();
+            }
         }
 
         private void NewWeapon()
@@ -290,11 +321,20 @@ namespace ForgeBorn.UnityLayer
             }
             AttachSession(new ForgeSession(blade, MaterialData.SteelBasicV1));
             _startMassKg = _session.MassKg;
+            _stats.Reset();
+            // A fresh blade while the guide is running: go back so no step is left unreachable (e.g. quenching a new cold blank).
+            if (!_tutorial.Finished && _tutorial.Index > _tutorial.IndexOf("order"))
+            {
+                _tutorial.RewindTo(_order != null ? "furnace" : "order");
+                _hammerHits = 0;
+                _flipCount = 0;
+            }
         }
 
         private void AttachSession(ForgeSession s)
         {
             _session = s;
+            if (!_undoing) _undo.Clear(); // a new blade or a loaded save: old snapshots no longer belong to it
             _builder = new BladeMeshBuilder(s.Profile);
             _meshFilter.sharedMesh = _builder.Mesh;
             _builder.RefreshState();
@@ -322,6 +362,7 @@ namespace ForgeBorn.UnityLayer
 
         private Station _station = Station.Grinder;
         private bool _paused;
+        private float _furnaceGlow = 0.2f; // 0.2 = banked fire, 1 = the blade is in the furnace
         private bool _rmbWasDown;
         private Vector2 _rmbLast;
 
@@ -334,6 +375,7 @@ namespace ForgeBorn.UnityLayer
             {
                 if (!Input.GetKeyDown(k)) continue;
                 KeyAction a = DesktopKeys.FromKey(k);
+                if (_paused && a != KeyAction.Pause) continue; // main menu, pause, settings and shop only react to Esc
                 switch (a)
                 {
                     case KeyAction.PressureDown: _pressureN = DesktopKeys.StepPressure(_pressureN, -1, (float)SandboxRules.MinPressureN, (float)SandboxRules.MaxPressureN); break;
@@ -350,6 +392,13 @@ namespace ForgeBorn.UnityLayer
                 _hudTimer = 0f;
             }
 
+            if (_paused) { _rmbWasDown = false; return; }
+
+            if (Input.GetKeyDown(KeyCode.Z) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))) Undo();
+            if (Input.GetKeyDown(KeyCode.Q)) StepAngle(-1);
+            if (Input.GetKeyDown(KeyCode.E)) StepAngle(1);
+            if (Input.GetKeyDown(KeyCode.F)) FlipBlade();
+
             float wheel = Input.mouseScrollDelta.y;
             if (Mathf.Abs(wheel) > 0.01f && !IsOverUi(-1))
             {
@@ -363,14 +412,23 @@ namespace ForgeBorn.UnityLayer
                 _hudTimer = 0f;
             }
 
-            bool rmb = Input.GetMouseButton(1) && !IsOverUi(-1);
+            // Right or middle drag pans the camera in every tool ("grab the workshop"); the blade is only rolled by Inspect's left drag.
+            bool rmb = (Input.GetMouseButton(1) || Input.GetMouseButton(2)) && !IsOverUi(-1);
             Vector2 mp = Input.mousePosition;
             if (rmb && _rmbWasDown)
             {
                 Vector2 delta = mp - _rmbLast;
-                _bladeRoot.Rotate(_bladeRoot.TransformDirection(Vector3.right), -delta.x * 0.4f, Space.World);
-                _camY = Mathf.Clamp(_camY - delta.y * ZoomSizes[_zoomIndex] * 2f / Screen.height, -0.6f, 0.6f);
-                PoseCamera();
+                float perPx = ZoomSizes[_zoomIndex] * 2f / Screen.height; // metres at the blade plane per screen pixel
+                PanCamera(-delta.x * perPx, -delta.y * perPx);
+            }
+
+            // Arrow keys pan too (held), so the view can be steered without the mouse.
+            float ax = (Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
+            float ay = (Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
+            if (ax != 0f || ay != 0f)
+            {
+                float step = ZoomSizes[_zoomIndex] * 1.2f * Time.unscaledDeltaTime;
+                PanCamera(ax * step, ay * step);
             }
             _rmbWasDown = rmb;
             _rmbLast = mp;
@@ -416,21 +474,28 @@ namespace ForgeBorn.UnityLayer
         private void ContinueGame()
         {
             Load();
+            ResetOrderState();
             SetPaused(false);
         }
 
-        private void StartNewGame()
+        private void ResetOrderState()
         {
             _order = null;
             _orderIndex = -1;
             _delivered = false;
             _resultText = null;
             _showReport = false;
-            if (_reportPanel != null) _reportPanel.SetActive(false);
-            NewWeapon();
             _env = ForgeEnv.Air;
+            if (_reportPanel != null) _reportPanel.SetActive(false);
+        }
+
+        private void StartNewGame()
+        {
+            ResetOrderState();
+            NewWeapon();
             _tutorial.Restart();
             _hammerHits = 0;
+            _flipCount = 0;
             _status = "";
             SetPaused(false);
         }
@@ -438,7 +503,7 @@ namespace ForgeBorn.UnityLayer
         private static bool AutomationRequested()
         {
             foreach (string a in System.Environment.GetCommandLineArgs())
-                if (a.StartsWith("-fb-screenshot", System.StringComparison.OrdinalIgnoreCase) || a.StartsWith("-fb-benchmark", System.StringComparison.OrdinalIgnoreCase)) return true;
+                if (a.StartsWith("-fb-screenshot", System.StringComparison.OrdinalIgnoreCase) || a.StartsWith("-fb-benchmark", System.StringComparison.OrdinalIgnoreCase) || a.StartsWith("-fb-frames", System.StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
 
@@ -456,7 +521,7 @@ namespace ForgeBorn.UnityLayer
 
         private void BuildShop(RectTransform safe)
         {
-            _shop = new ShopScreen(safe, () => _career, s => _status = s, () => { SaveCareer(); RefreshHud(); });
+            _shop = new ShopScreen(safe, () => _career, s => _status = s, () => { SaveCareer(); RefreshHud(); }, CloseShop);
         }
 
         private static void QuitGame()
@@ -487,7 +552,13 @@ namespace ForgeBorn.UnityLayer
         private void Update()
         {
             HandleDesktopInput();
-            if (_paused) return;
+            if (_paused) { if (_aim != null) _aim.Hide(); return; }
+            UpdateAim();
+            UpdateGoals();
+            UpdateAdvice();
+            if (_order != null && !_delivered) _stats.AddTime(Time.unscaledDeltaTime);
+            _furnaceGlow = Mathf.MoveTowards(_furnaceGlow, _env == ForgeEnv.Furnace ? 1f : 0.2f, Time.deltaTime * 1.5f);
+            SandboxProps.SetFurnaceGlow(_furnaceGlow);
             Vector2 pos;
             int fingerId;
             bool down = TryGetPointer(out pos, out fingerId);
@@ -504,12 +575,13 @@ namespace ForgeBorn.UnityLayer
             }
             else if (_tool == ToolMode.Grind)
             {
+                if (pressedNow) { PushUndo(); _stats.OnGrindStroke(); }
                 GrindStep(pos, Time.deltaTime);
             }
             else if (_tool == ToolMode.Hammer)
             {
                 _audio.SetGrind(0f, 0f);
-                if (pressedNow) HammerStrike(pos);
+                if (pressedNow) HammerStrike(pos); // pushes its own undo step, only when a blow really lands
             }
             else
             {
@@ -527,6 +599,264 @@ namespace ForgeBorn.UnityLayer
                 _hudTimer = 0.1f;
                 RefreshHud();
             }
+        }
+
+        private AimAssist _aim;
+
+        /// <summary>Blade temperature (K) at position x along the blade, interpolated between stations.</summary>
+        private double TempAtX(double x)
+        {
+            BladeProfile p = _session.Profile;
+            int n = p.StationCount;
+            if (x <= p.X[0]) return p.TempK[0];
+            if (x >= p.X[n - 1]) return p.TempK[n - 1];
+            int lo = 0, hi = n - 1;
+            while (hi - lo > 1) { int mid = (lo + hi) >> 1; if (p.X[mid] <= x) lo = mid; else hi = mid; }
+            double t = (x - p.X[lo]) / System.Math.Max(1e-9, p.X[hi] - p.X[lo]);
+            return p.TempK[lo] + (p.TempK[hi] - p.TempK[lo]) * t;
+        }
+
+        // ---------------------------------------------------------------- assists (plan phases 1 and 2)
+
+        // Grind angle (included edge angle, degrees) and the blade being turned over to reach the other face.
+        private static readonly double[] GrindAngles = { 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0 };
+        private int _angleIndex = 2;
+        private bool _flipped;
+        private int _flipCount;       // flips since the blade was made (the tutorial waits for the first one)
+        private Text _flipLabel, _skipBtn;
+        private Text _angleLabel;
+
+        private double GrindAngle { get { return GrindAngles[_angleIndex]; } }
+
+        private void StepAngle(int dir)
+        {
+            _angleIndex = (_angleIndex + dir + GrindAngles.Length) % GrindAngles.Length;
+            _status = Loc.F("grind angle: {0} deg", SandboxRules.F(GrindAngle, 0));
+            _hudTimer = 0f;
+            _adviceEval = 0f;
+        }
+
+        /// <summary>Picks the notch nearest to an order's target edge angle, so a new order starts at a sensible setting.</summary>
+        private void SelectAngleNear(double deg)
+        {
+            int best = 0;
+            for (int i = 1; i < GrindAngles.Length; i++)
+                if (System.Math.Abs(GrindAngles[i] - deg) < System.Math.Abs(GrindAngles[best] - deg)) best = i;
+            _angleIndex = best;
+        }
+
+        /// <summary>Turns the blade over (about its length) so the other face points at the wheel. Switching tools restores the normal view.</summary>
+        private void FlipBlade()
+        {
+            _bladeRoot.Rotate(Vector3.right, 180f, Space.World);
+            _flipped = !_flipped;
+            _flipCount++;
+            _hasPrev = false;
+            _hasScreenPrev = false;
+            _status = Loc.T(_flipped ? "Blade turned over: other face up" : "Blade turned back");
+        }
+
+        public void CaptureSetGrindAngle(double deg) { SelectAngleNear(deg); }
+        public void CaptureNewWeapon() { NewWeapon(); }
+        public void CaptureSetupGrind(int wheelIndex, float pressureN) { _wheelIndex = wheelIndex; _pressureN = pressureN; }
+
+        /// <summary>Screen position (pixels of the camera's target) of the +Y edge at blade position x, offsetM below the tip.</summary>
+        public Vector2 CaptureEdgeScreen(double x, double offsetM)
+        {
+            return _cam.WorldToScreenPoint(_bladeRoot.TransformPoint(new Vector3((float)x, (float)(EdgeHalfWidthM(x) - offsetM), 0f)));
+        }
+        public void CaptureFlip() { FlipBlade(); }
+
+        private readonly PlayStats _stats = new PlayStats();
+        private float _coldArmTime = -10f;
+        private QuenchReading _quench;
+        private float _quenchStamp = -10f;
+        private double[] _prevTemps;
+        private Text _adviceText;
+        private float _adviceTimer, _adviceEval;
+        private string _adviceCache = "";
+
+        private int AssistLevel { get { return _settings != null ? _settings.Assist : 1; } }
+
+        private static string PlayLogPath { get { return Path.Combine(Application.persistentDataPath, "playlog.csv"); } }
+
+        /// <summary>Screen ends of the grind rail: the edge line moved down by the wheel's rail distance (see GrindRail).</summary>
+        private bool RailEnds(out Vector3 a, out Vector3 b)
+        {
+            float off = (float)GrindRail.OffsetM(_wheels[_wheelIndex]);
+            a = _cam.WorldToScreenPoint(_bladeRoot.TransformPoint(new Vector3(0f, (float)EdgeHalfWidthM(0.0) - off, 0f)));
+            b = _cam.WorldToScreenPoint(_bladeRoot.TransformPoint(new Vector3((float)BladeLengthM, (float)EdgeHalfWidthM(BladeLengthM) - off, 0f)));
+            return a.z > 0f && b.z > 0f;
+        }
+
+        /// <summary>Strong assist: while grinding, a pointer within 28 px of the rail is held on it (the player still sets position along the blade, speed and pressure).</summary>
+        private Vector2 AssistedPos(Vector2 raw)
+        {
+            if (AssistLevel < 2 || _tool != ToolMode.Grind || _cam == null) return raw;
+            Vector3 a, b;
+            if (!RailEnds(out a, out b) || Mathf.Abs(b.x - a.x) < 1f) return raw;
+            float u = (raw.x - a.x) / (b.x - a.x);
+            if (u < -0.02f || u > 1.02f) return raw;
+            float y = a.y + (b.y - a.y) * u;
+            return Mathf.Abs(raw.y - y) <= 28f ? new Vector2(raw.x, y) : raw;
+        }
+
+        private void UpdateAdvice()
+        {
+            if (_adviceText == null) return;
+            _adviceTimer -= Time.unscaledDeltaTime;
+            if (_adviceTimer > 0f) return;
+            _adviceTimer = 0.2f;
+            if (AssistLevel == 0 || _delivered || _paused) { _adviceText.text = ""; return; }
+            _adviceEval -= 0.2f;
+            if (_adviceEval <= 0f) { _adviceEval = 0.5f; _adviceCache = BuildAdvice(); }
+            string q = QuenchLine();
+            _adviceText.text = (q.Length > 0 ? q + "\n" : "") + _adviceCache;
+        }
+
+        private string QuenchLine()
+        {
+            if (!(_env == ForgeEnv.Water || _env == ForgeEnv.Oil) || Time.unscaledTime - _quenchStamp > 1.5f) return "";
+            string rate = SandboxRules.F(_quench.MinRateKPerS, 0);
+            switch (_quench.State)
+            {
+                case QuenchState.TooSlow: return "<color=#9EC4FF>" + Loc.F("Quench {0} K/s: too slow, it will not harden", rate) + "</color>";
+                case QuenchState.Partial: return "<color=#FFD070>" + Loc.F("Quench {0} K/s: only partly hardening", rate) + "</color>";
+                case QuenchState.Full: return "<color=#8CFF8C>" + Loc.F("Quench {0} K/s: hardening fully", rate) + "</color>";
+                case QuenchState.CrackRisk: return "<color=#FF7060>" + Loc.F("Quench {0} K/s: CRACK RISK, take it out of the bath", rate) + "</color>";
+                default: return "";
+            }
+        }
+
+        private string BuildAdvice()
+        {
+            BladeSpec spec = _order != null ? _order.Spec : new BladeSpec();
+            BladeReport r = _session.Evaluate(spec);
+            Advice a = NextStepAdvisor.Suggest(_session.Profile, _session.Material, r, spec, _order != null ? _order.MaxMassKg : double.MaxValue);
+            string col = a.Level == AdviceLevel.Danger ? "#FF7060" : a.Level == AdviceLevel.Warn ? "#FFC060" : a.Level == AdviceLevel.Good ? "#8CFF8C" : "#E8E8E8";
+            var sb = new System.Text.StringBuilder();
+            sb.Append("<color=").Append(col).Append(">").Append(Loc.T("Next:")).Append(" ").Append(Loc.F(a.Template, (object[])a.Args)).Append("</color>");
+
+            BladeProfile p = _session.Profile;
+            int mid = p.StationCount / 2;
+            if (p.Martensite[mid] >= 0.5)
+            {
+                MaterialData m = _session.Material;
+                sb.Append("\n").Append(Loc.F("Temper {0} C: 10 min {1}, 1 h {2}, 4 h {3} HRC (aim {4})", SandboxRules.F(SandboxRules.OvenK - 273.15, 0),
+                    SandboxRules.F(TemperForecast.HrcAfter(m, p.Martensite[mid], p.TemperP[mid], SandboxRules.OvenK, 1.0 / 6.0), 0),
+                    SandboxRules.F(TemperForecast.HrcAfter(m, p.Martensite[mid], p.TemperP[mid], SandboxRules.OvenK, 1.0), 0),
+                    SandboxRules.F(TemperForecast.HrcAfter(m, p.Martensite[mid], p.TemperP[mid], SandboxRules.OvenK, 4.0), 0),
+                    SandboxRules.F(spec.TargetEdgeHrc, 0)));
+            }
+            if (_tool == ToolMode.Hammer)
+                sb.Append("\n").Append(Loc.F("Forging heat: {0} C and up (blue ring = too cold)", SandboxRules.F(_session.Material.ForgeMinTempK - 273.15, 0)));
+            return sb.ToString();
+        }
+
+        private void WritePlayLog(OrderResult res, BladeReport rep)
+        {
+            if (!_persistCareer || _order == null) return;
+            try
+            {
+                bool fresh = !File.Exists(PlayLogPath);
+                using (var w = new StreamWriter(PlayLogPath, true))
+                {
+                    if (fresh) w.WriteLine(PlayLog.Header);
+                    w.WriteLine(PlayLog.Row(_order.Id, res.Delivered, res.Net, rep, _stats));
+                }
+            }
+            catch (System.Exception e) { UnityEngine.Debug.LogWarning("Play log failed: " + e.Message); }
+        }
+
+        // ---------------------------------------------------------------- order goals (live checklist)
+
+        private Text _goalText;
+        private float _goalTimer;
+
+        private static string Mark(bool ok, string s) { return ok ? "<color=#8CFF8C>" + s + "</color>" : "<color=#FFB070>" + s + "</color>"; }
+
+        /// <summary>Live checklist of what the current order still needs, refreshed twice a second (Evaluate walks every station).</summary>
+        private void UpdateGoals()
+        {
+            if (_goalText == null) return;
+            _goalTimer -= Time.unscaledDeltaTime;
+            if (_goalTimer > 0f) return;
+            _goalTimer = 0.5f;
+            if (_order == null || _delivered) { _goalText.text = ""; return; }
+
+            BladeReport r = _session.Evaluate(_order.Spec);
+            BladeSpec sp = _order.Spec;
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(Loc.T("Goals"));
+            sb.AppendLine(!r.HasBevel
+                ? Mark(false, Loc.F("Edge: not ground yet (aim {0} deg)", SandboxRules.F(sp.TargetEdgeAngleDeg, 0)))
+                : Mark(r.EdgeScore >= 0.6, Loc.F("Edge {0} deg (aim {1} +-{2})", SandboxRules.F(r.EdgeAngleDeg, 0), SandboxRules.F(sp.TargetEdgeAngleDeg, 0), SandboxRules.F(sp.EdgeAngleTolDeg, 0))));
+            sb.AppendLine(Mark(r.HardnessScore >= 0.6, Loc.F("Hardness {0} HRC (aim {1} +-{2})", SandboxRules.F(r.MeanHrc, 0), SandboxRules.F(sp.TargetEdgeHrc, 0), SandboxRules.F(sp.HrcTol, 0))));
+            sb.AppendLine(Mark(r.StraightnessScore >= 0.6, Loc.F("Bend {0} mm (max {1})", SandboxRules.F(r.StraightnessDevM * 1000.0, 1), SandboxRules.F(sp.MaxStraightDevM * 1000.0, 1))));
+            sb.AppendLine(Mark(r.TwistScore >= 0.6, Loc.F("Twist {0} deg (max {1})", SandboxRules.F(r.TwistRangeDeg, 1), SandboxRules.F(sp.MaxTwistDeg, 1))));
+            if (_order.MaxMassKg < double.MaxValue)
+                sb.AppendLine(Mark(r.MassKg <= _order.MaxMassKg, Loc.F("Mass {0} g (max {1})", SandboxRules.F(r.MassKg * 1000.0, 0), SandboxRules.F(_order.MaxMassKg * 1000.0, 0))));
+            _goalText.text = sb.ToString();
+        }
+
+        // ---------------------------------------------------------------- undo (Ctrl+Z)
+
+        private const int MaxUndo = 20;
+        private readonly List<WeaponSnapshot> _undo = new List<WeaponSnapshot>();
+        private bool _undoing;
+
+        private void PushUndo()
+        {
+            _undo.Add(_session.Capture());
+            if (_undo.Count > MaxUndo) _undo.RemoveAt(0);
+        }
+
+        private void Undo()
+        {
+            if (_undo.Count == 0) { _status = Loc.T("Nothing to undo"); return; }
+            WeaponSnapshot snap = _undo[_undo.Count - 1];
+            _undo.RemoveAt(_undo.Count - 1);
+            _stats.OnUndo();
+            _undoing = true;
+            AttachSession(ForgeSession.FromSnapshot(snap));
+            _undoing = false;
+            _hasPrev = false;
+            _hasScreenPrev = false;
+            _goalTimer = 0f;
+            _status = Loc.F("Undone ({0} left)", _undo.Count);
+        }
+
+        /// <summary>Half-width (m) of the +Y edge at blade position x for the current blank (matches NewWeapon).</summary>
+        private double EdgeHalfWidthM(double x)
+        {
+            return _blankIndex == 0 ? 0.025 - 0.010 * x / BladeLengthM : 0.025;
+        }
+
+        /// <summary>Aiming aid for Grind and Hammer: ring on the mouse (green over the blade) and, for Grind, a line along the edge to follow.</summary>
+        private void UpdateAim()
+        {
+            if (_aim == null) return;
+            bool aiming = (_tool == ToolMode.Grind || _tool == ToolMode.Hammer) && Input.touchCount == 0;
+            Vector2 mp = Input.mousePosition;
+            if (AssistLevel == 0 || !aiming || IsOverUi(-1) || mp.x < 0f || mp.y < 0f || mp.x > Screen.width || mp.y > Screen.height) { _aim.Hide(); return; }
+
+            mp = AssistedPos(mp);
+            Vector3 o, d;
+            ScreenToBladeRay(mp, out o, out d);
+            BladeHit bh;
+            bool onBlade = BladeRaycaster.Raycast(_session.Profile, new Vec3d(o.x, o.y, o.z), new Vec3d(d.x, d.y, d.z), 5.0, out bh);
+            AimAssist.AimState st = !onBlade ? AimAssist.AimState.Miss : AimAssist.AimState.OnBlade;
+            if (onBlade && _tool == ToolMode.Hammer)
+                st = TempAtX(bh.X) < _session.Material.ForgeMinTempK ? AimAssist.AimState.Cold : AimAssist.AimState.Hot;
+            // Ring size = the contact footprint (wheel or hammer face) at the blade plane.
+            float ppm = _cam.pixelHeight / (2f * ZoomSizes[_zoomIndex]);
+            float halfLen = _tool == ToolMode.Hammer ? (float)_faces[_faceIndex].HalfLengthM : (float)_wheels[_wheelIndex].FootprintHalfLengthM;
+            _aim.SetRingSize(Mathf.Clamp(2f * halfLen * ppm, 22f, 220f));
+            _aim.ShowRing(mp, st);
+
+            Vector3 ra, rb;
+            if (_tool == ToolMode.Grind && RailEnds(out ra, out rb)) _aim.ShowGuide(ra, rb);
+            else _aim.HideGuide();
         }
 
         private readonly IPointerSource _pointer = CompositePointerSource.Default();
@@ -563,6 +893,7 @@ namespace ForgeBorn.UnityLayer
 
         private void GrindStep(Vector2 screenPos, float frameDt)
         {
+            screenPos = AssistedPos(screenPos);
             Vector3 o, d;
             ScreenToBladeRay(screenPos, out o, out d);
             double pq = SandboxRules.QuantizePressure(_pressureN);
@@ -578,7 +909,7 @@ namespace ForgeBorn.UnityLayer
             {
                 var a = new GrindSample(_prev.RayOrigin, _prev.RayDirection, _prev.PressureN, 0.0);
                 var samples = new List<GrindSample>(2) { a, cur };
-                var cmd = new GrindStrokeCommand(_nextCommandId++, Time.timeAsDouble, _wheels[_wheelIndex], WheelRpm, samples);
+                var cmd = new GrindStrokeCommand(_nextCommandId++, Time.timeAsDouble, _wheels[_wheelIndex], WheelRpm, samples, GrindAngle);
                 _sw.Restart();
                 GrindResult res = _session.ApplyGrind(cmd);
                 _sw.Stop();
@@ -625,13 +956,27 @@ namespace ForgeBorn.UnityLayer
             var cmd = new HammerStrikeCommand(_nextCommandId++, Time.timeAsDouble, new Vec3d(o.x, o.y, o.z),
                 new Vec3d(d.x, d.y, d.z), energy, _faces[_faceIndex]);
 
+            if (AssistLevel > 0)
+            {
+                BladeHit coldHit;
+                if (BladeRaycaster.Raycast(_session.Profile, cmd.RayOrigin, cmd.RayDirection, 5.0, out coldHit)
+                    && TempAtX(coldHit.X) < _session.Material.ForgeMinTempK && Time.time - _coldArmTime > 1.5f)
+                {
+                    _coldArmTime = Time.time;
+                    _lastStrikeTime = -10f; // the warning is not a blow
+                    _status = Loc.T("Cold metal: click again within 1.5 s to strike anyway.");
+                    return;
+                }
+            }
+            PushUndo();
             _sw.Restart();
             HammerResult res = _session.ApplyHammer(cmd);
             _sw.Stop();
             LastHammer = res;
 
+            if (res.Accepted) _stats.OnStrike(res.Hit, res.Cold);
             if (!res.Accepted) { _status = Loc.F("rejected: {0}", res.Reason); return; }
-            if (!res.Hit) { _status = Loc.T("missed the blade"); return; }
+            if (!res.Hit) { _undo.RemoveAt(_undo.Count - 1); _status = Loc.T("missed the blade"); return; }
             if (res.StationsTouched > 0 && !res.Cold) _hammerHits++;
 
             if (res.StationsTouched > 0)
@@ -687,7 +1032,14 @@ namespace ForgeBorn.UnityLayer
 
             // Quenches need fine steps (the cooling rate at the nose decides hardness); air/oven/furnace tolerate coarse ones.
             _session.Thermal.StepsPerCommand = (_env == ForgeEnv.Water || _env == ForgeEnv.Oil) ? 2000.0 : 500.0;
+            if (_prevTemps == null || _prevTemps.Length != _session.Profile.StationCount) _prevTemps = new double[_session.Profile.StationCount];
+            System.Array.Copy(_session.Profile.TempK, _prevTemps, _prevTemps.Length);
             ThermalResult r = _session.ApplyThermal(new ThermalCommand(0, env, dt));
+            if (r.Accepted && (_env == ForgeEnv.Water || _env == ForgeEnv.Oil))
+            {
+                _quench = QuenchMonitor.Assess(_session.Profile, _session.Material, _prevTemps, dt);
+                if (_quench.State != QuenchState.Idle) _quenchStamp = Time.unscaledTime;
+            }
             if (!r.Accepted) { _status = Loc.F("thermal rejected: {0}", r.Reason); return; }
             _builder.RefreshState();
             if (r.NewlyCrackedStations > 0)
@@ -762,10 +1114,11 @@ namespace ForgeBorn.UnityLayer
                 row++;
             }
             MakeButton(safe, Loc.T("Zoom"), ColMin(row), ColMax(row), CycleZoom); row++;
-            MakeButton(safe, Loc.T("Shop"), ColMin(row), ColMax(row), OpenShop);
+            MakeButton(safe, Loc.T("Shop"), ColMin(row), ColMax(row), OpenShop); row++;
+            _angleLabel = MakeButton(safe, "", ColMin(row), ColMax(row), () => StepAngle(1));
 
             // Bottom bar, nine buttons across.
-            const float barX0 = 0.135f, barW = 0.095f, barY0 = 0.01f, barY1 = 0.095f;
+            const float barX0 = 0.135f, barW = 0.078f, barY0 = 0.01f, barY1 = 0.095f;
             int slot = 0;
             Vector2 BarMin() { return new Vector2(barX0 + slot * barW, barY0); }
             Vector2 BarMax() { return new Vector2(barX0 + (slot + 1) * barW, barY1); }
@@ -776,7 +1129,9 @@ namespace ForgeBorn.UnityLayer
             _orderBtn = MakeButton(safe, Loc.T("Order"), BarMin(), BarMax(), CycleOrder); slot++;
             _deliverBtn = MakeButton(safe, Loc.T("Deliver"), BarMin(), BarMax(), Deliver); slot++;
             _reportBtn = MakeButton(safe, Loc.T("Report"), BarMin(), BarMax(), ToggleReport); slot++;
-            MakeButton(safe, Loc.T("Guide"), BarMin(), BarMax(), () => { _tutorial.Restart(); _hammerHits = 0; RefreshHud(); }); slot++;
+            _flipLabel = MakeButton(safe, Loc.T("Flip"), BarMin(), BarMax(), FlipBlade); slot++;
+            MakeButton(safe, Loc.T("Undo"), BarMin(), BarMax(), Undo); slot++; // touch screens have no Ctrl+Z
+            MakeButton(safe, Loc.T("Guide"), BarMin(), BarMax(), () => { _tutorial.Restart(); _hammerHits = 0; _flipCount = 0; RefreshHud(); }); slot++;
             MakeButton(safe, Loc.T("Save"), BarMin(), BarMax(), Save); slot++;
             MakeButton(safe, Loc.T("Load"), BarMin(), BarMax(), Load);
             BuildTutorialPanel(safe);
@@ -793,6 +1148,13 @@ namespace ForgeBorn.UnityLayer
             img.raycastTarget = false;
             _reportText = MakeText(prt, "ReportText", 18, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
             _reportPanel.SetActive(false);
+            _aim = new AimAssist(safe);
+            _goalText = MakeText(safe, "Goals", 20, TextAnchor.UpperRight, new Vector2(0.60f, 0.58f), new Vector2(0.99f, 0.86f), Vector2.zero, Vector2.zero);
+            _goalText.raycastTarget = false; // must not swallow grind/hammer clicks
+            _goalText.supportRichText = true;
+            _adviceText = MakeText(safe, "Advice", 19, TextAnchor.UpperRight, new Vector2(0.55f, 0.36f), new Vector2(0.99f, 0.57f), Vector2.zero, Vector2.zero);
+            _adviceText.raycastTarget = false;
+            _adviceText.supportRichText = true;
             BuildShop(safe);
             BuildMenus(safe); // last child, so the menus draw over everything
 
@@ -803,24 +1165,26 @@ namespace ForgeBorn.UnityLayer
             _tutPanel = new GameObject("TutorialPanel", typeof(RectTransform), typeof(Image));
             var rt = _tutPanel.GetComponent<RectTransform>();
             rt.SetParent(safe, false);
-            rt.anchorMin = new Vector2(0.135f, 0.84f);
+            rt.anchorMin = new Vector2(0.135f, 0.78f);
             rt.anchorMax = new Vector2(0.715f, 0.99f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             var img = _tutPanel.GetComponent<Image>();
             img.color = new Color(0.07f, 0.06f, 0.05f, 0.86f);
             img.raycastTarget = false;
 
-            _tutStep = MakeText(rt, "Step", 16, TextAnchor.UpperRight, Vector2.zero, Vector2.one, new Vector2(12, 8), new Vector2(-12, -8));
-            _tutStep.color = new Color(0.7f, 0.7f, 0.7f);
-            _tutTitle = MakeText(rt, "Title", 24, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 8), new Vector2(-90, -8));
+            // Large type: this panel is the one thing a first-time player must read (74-27).
+            _tutStep = MakeText(rt, "Step", 22, TextAnchor.UpperRight, Vector2.zero, Vector2.one, new Vector2(12, 8), new Vector2(-12, -8));
+            _tutStep.color = new Color(0.78f, 0.78f, 0.78f);
+            _tutTitle = MakeText(rt, "Title", 34, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(16, 8), new Vector2(-130, -8));
             _tutTitle.color = new Color(1f, 0.72f, 0.3f);
-            _tutBody = MakeText(rt, "Body", 19, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 56), new Vector2(-14, -40));
-            _tutWarn = MakeText(rt, "Warn", 18, TextAnchor.LowerLeft, Vector2.zero, Vector2.one, new Vector2(14, 8), new Vector2(-260, -8));
+            _tutBody = MakeText(rt, "Body", 26, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(16, 64), new Vector2(-16, -56));
+            _tutBody.supportRichText = true;
+            _tutWarn = MakeText(rt, "Warn", 24, TextAnchor.LowerLeft, Vector2.zero, Vector2.one, new Vector2(16, 8), new Vector2(-260, -8));
             _tutWarn.color = new Color(1f, 0.4f, 0.3f);
 
-            // Next and Skip live on the panel (buttons block touches only where they are).
+            // Next and Skip live on the panel (buttons block touches only where they are). Skip is hidden while the guide is mandatory.
             _nextBtn = MakePanelButton(rt, Loc.T("Next"), 1f, () => _tutorial.Acknowledge());
-            MakePanelButton(rt, Loc.T("Skip"), 0f, () => { _tutorial.Skip(); RefreshHud(); });
+            _skipBtn = MakePanelButton(rt, Loc.T("Skip"), 0f, () => { _tutorial.Skip(); RefreshHud(); });
         }
 
         private TutorialSnapshot MakeTutorialSnapshot()
@@ -839,6 +1203,9 @@ namespace ForgeBorn.UnityLayer
                 TimeScale = SandboxRules.TimeScales[_speedIndex],
                 ReportOpen = _showReport,
                 Cracked = SandboxRules.AnyCracked(p),
+                HasOrder = _order != null,
+                Delivered = _delivered,
+                FlipCount = _flipCount,
             };
         }
 
@@ -853,6 +1220,9 @@ namespace ForgeBorn.UnityLayer
                 case TutorialTarget.ToolButton: return _toolLabel;
                 case TutorialTarget.Report: return _reportBtn;
                 case TutorialTarget.Next: return _nextBtn;
+                case TutorialTarget.Order: return _orderBtn;
+                case TutorialTarget.Deliver: return _deliverBtn;
+                case TutorialTarget.Flip: return _flipLabel;
                 default: return null;
             }
         }
@@ -863,9 +1233,15 @@ namespace ForgeBorn.UnityLayer
         {
             if (_tutPanel == null) return;
             TutorialSnapshot snap = MakeTutorialSnapshot();
-            _tutorial.Tick(snap);
+            if (!_tutFrozen) _tutorial.Tick(snap);
+            if (_tutorial.Finished && _tutorial.Mandatory)
+            {
+                // Completed the required first run: never force it again.
+                _tutorial.Mandatory = false;
+                if (_persistCareer) { PlayerPrefs.SetInt(TutorialFlow.DonePrefsKey, 1); PlayerPrefs.Save(); }
+            }
             // Clear all highlights, then light the current target.
-            foreach (Text l in new[] { _toolLabel, _speedBtn, _reportBtn })
+            foreach (Text l in new[] { _toolLabel, _speedBtn, _reportBtn, _orderBtn, _deliverBtn, _flipLabel })
                 if (l != null) l.transform.parent.GetComponent<Image>().color = ButtonIdle;
             foreach (Text l in _envLabels) l.transform.parent.GetComponent<Image>().color = ButtonIdle;
 
@@ -878,6 +1254,7 @@ namespace ForgeBorn.UnityLayer
             _tutBody.text = Loc.T(st.Why) + "\n" + Loc.T(st.Action);
             _tutWarn.text = Loc.T(_tutorial.Warning(snap) ?? "");
             _nextBtn.transform.parent.gameObject.SetActive(st.NeedsAck);
+            _skipBtn.transform.parent.gameObject.SetActive(!_tutorial.Mandatory);
             Text target = TargetLabel(st.Target);
             if (target != null && target.transform.parent.gameObject.activeSelf && st.Target != TutorialTarget.Next)
             {
@@ -902,6 +1279,7 @@ namespace ForgeBorn.UnityLayer
                 + "   " + Loc.T(_env.ToString()) + "  x" + SandboxRules.F(SandboxRules.TimeScales[_speedIndex], 0)
                 + (_profile.Simulated ? "   [" + _profile.Name + "]" : "");
             _statusText.text = _status;
+            if (_angleLabel != null) _angleLabel.text = Loc.F("Angle {0} deg", SandboxRules.F(GrindAngle, 0));
             _toolLabel.text = Loc.T(_tool.ToString().ToUpperInvariant());
             _optionLabel.text = _tool == ToolMode.Hammer ? Loc.T(_faces[_faceIndex].Id.Replace("hammer_", "").Replace("_v1", ""))
                 : _tool == ToolMode.Grind ? Loc.T(_wheels[_wheelIndex].Id.Replace("wheel_", "").Replace("_v1", "")) : "-";
@@ -996,6 +1374,7 @@ namespace ForgeBorn.UnityLayer
             _resultText = null;
             if (_order == null) { NewBlank(); return; }
             NewWeapon();
+            SelectAngleNear(_order.Spec.TargetEdgeAngleDeg);
             _env = ForgeEnv.Air;
             _status = Loc.F("Order: {0}. {1}", Loc.T(_order.Client), Loc.T(_order.Brief));
             _resultText = Loc.F("ORDER {0} for {1}\n{2}\nPays up to {3}, blank costs {4}. Needs score {5}+.", Loc.T(_order.Title), Loc.T(_order.Client), Loc.T(_order.Brief),
@@ -1012,6 +1391,7 @@ namespace ForgeBorn.UnityLayer
             OrderResult res = OrderBook.Settle(_order, rep);
             _career.Apply(_order, res);
             SaveCareer();
+            WritePlayLog(res, rep);
             _delivered = true;
             var sb = new System.Text.StringBuilder();
             sb.Append(res.Delivered ? Loc.F("DELIVERED  grade {0}  paid {1}  (net {2})", res.Grade, res.Payout, res.Net) : Loc.F("NOT ACCEPTED  net {0}", res.Net));
@@ -1031,6 +1411,19 @@ namespace ForgeBorn.UnityLayer
         }
 
         public void CaptureDeliver() { Deliver(); RefreshHud(); }
+
+        private bool _tutFrozen; // capture only: keep the shown tutorial step even if its goal is already met
+
+        /// <summary>Screenshot hook: shows tutorial step <paramref name="id"/> and stops it advancing.</summary>
+        public void CaptureTutorialStep(string id, bool mandatory)
+        {
+            _tutFrozen = true;
+            _tutorial.Mandatory = mandatory;
+            _tutorial.JumpTo(id);
+        }
+        public void CaptureRefreshGoals() { _goalTimer = 0f; UpdateGoals(); }
+        public void CaptureRefreshAdvice() { _adviceTimer = 0f; _adviceEval = 0f; UpdateAdvice(); }
+        public string CaptureAdviceText() { return _adviceText != null ? _adviceText.text : ""; }
 
         private void NewBlank()
         {

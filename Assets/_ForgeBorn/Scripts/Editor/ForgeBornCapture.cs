@@ -1,5 +1,6 @@
 using System.IO;
 using ForgeBorn.Domain.Commands;
+using ForgeBorn.Domain.Evaluation;
 using ForgeBorn.UnityLayer;
 using UnityEditor;
 using UnityEngine;
@@ -37,6 +38,7 @@ namespace ForgeBorn.EditorTools
 
             var go = new GameObject("ForgeSandbox");
             var sb = go.AddComponent<ForgeSandbox>();
+            Loc.Current = Language.Vietnamese; // the game is Vietnamese-first; Initialize only sets it while playing
             sb.Initialize();
 
             Camera cam = Camera.main;
@@ -63,6 +65,11 @@ namespace ForgeBorn.EditorTools
 
             sb.CaptureThermal(ForgeEnv.Furnace, 70.0);
             Shot(sb, cam, dir, "03_furnace_90s_hot");
+            sb.CaptureShowReport(false, ToolMode.Hammer);
+            sb.CaptureRefreshAdvice();
+            Debug.Log("[Capture] advice (hammer, hot): " + sb.CaptureAdviceText().Replace("\n", " | "));
+            Shot(sb, cam, dir, "10_advice_hammer_hot");
+            sb.CaptureShowReport(false, ToolMode.Grind);
 
             HammerResult r = sb.CaptureHammer(0.4, 0.0, 120.0);
             Debug.Log("[Capture] hammer hit=" + r.Hit + " stations=" + r.StationsTouched + " depthMm=" + (r.DepthM * 1000.0) + " tempC=" + (r.HitTempK - 273.15));
@@ -72,10 +79,19 @@ namespace ForgeBorn.EditorTools
             // First seconds in the bath: the blade is still hot, so it steams. Then the rest of the quench without vapour.
             sb.CaptureThermal(ForgeEnv.Water, 0.4);
             sb.CaptureSimulateSteam(1.0f);
+            sb.CaptureRefreshAdvice();
+            Debug.Log("[Capture] advice (quench): " + sb.CaptureAdviceText().Replace("\n", " | "));
             Shot(sb, cam, dir, "04b_quench_steam");
             sb.CaptureClearSteam();
 
-            sb.CaptureThermal(ForgeEnv.Water, 29.6);
+            sb.CaptureThermal(ForgeEnv.Water, 1.6);
+            sb.CaptureRefreshAdvice();
+            Debug.Log("[Capture] advice (quench, 2 s in): " + sb.CaptureAdviceText().Replace("\n", " | "));
+            Shot(sb, cam, dir, "11_advice_quench_rate");
+
+            sb.CaptureThermal(ForgeEnv.Water, 28.0);
+            sb.CaptureRefreshAdvice();
+            Debug.Log("[Capture] advice (quenched): " + sb.CaptureAdviceText().Replace("\n", " | "));
             Shot(sb, cam, dir, "05_quenched");
 
             sb.CaptureThermal(ForgeEnv.Oven, 3600.0);
@@ -84,6 +100,8 @@ namespace ForgeBorn.EditorTools
 
             // Order flow: deliver the (ungrounded, quenched, tempered) blade to the journeyman client. Expected: rejected, with reasons.
             sb.CaptureSetOrder(1);
+            sb.CaptureRefreshGoals();
+            Shot(sb, cam, dir, "09_order_goals_checklist");
             sb.CaptureDeliver();
             Shot(sb, cam, dir, "08_order_rejected_with_reasons");
             sb.CaptureShowReport(false, ToolMode.Grind);
@@ -105,7 +123,49 @@ namespace ForgeBorn.EditorTools
             Debug.Log("[Capture] screen hammer hit=" + (screenHit != null && screenHit.Hit));
             Object.DestroyImmediate(rayRt);
 
-            bool ok = removedKg > 0.001 && screenHit != null && screenHit.Hit;
+            // Angle-held grinding through the real pointer path: a fresh blank, coarse wheel at 150 N, angle 20, both faces, edge at 2 mm.
+            sb.CaptureNewWeapon();
+            sb.CaptureSetupGrind(0, 150f);
+            sb.CaptureSetGrindAngle(20.0);
+            sb.CaptureShowReport(false, ToolMode.Grind);
+            var facetRt = new RenderTexture(W, H, 24, RenderTextureFormat.ARGB32);
+            cam.targetTexture = facetRt;
+            for (int round = 1; round <= 6; round++)
+            {
+                for (int face = 0; face < 2; face++)
+                {
+                    sb.CaptureGrindDrag(sb.CaptureEdgeScreen(0.1, 0.002), sb.CaptureEdgeScreen(0.7, 0.002), 150, 0.016f);
+                    sb.CaptureFlip();
+                }
+                BladeReport fr = sb.Session.Evaluate(null);
+                Debug.Log("[Capture] facet round " + round + ": angle " + fr.EdgeAngleDeg.ToString("F1") + " asymmetry " + fr.BevelAsymmetry.ToString("F2") + " mass " + (sb.Session.MassKg * 1000.0).ToString("F0") + " g");
+            }
+            BladeReport facet = sb.Session.Evaluate(null);
+            Object.DestroyImmediate(facetRt);
+            cam.targetTexture = null;
+            Debug.Log("[Capture] FACET angle " + facet.EdgeAngleDeg.ToString("F1") + " (set 20)");
+            Shot(sb, cam, dir, "12_facet_bevel_both_faces");
+
+            // Mandatory first-order guide (74-27): one screenshot per step, in the state a first-time player sees it.
+            string tdir = Path.Combine(dir, "tutorial");
+            Directory.CreateDirectory(tdir);
+            sb.CaptureNewWeapon();
+            sb.CaptureShowReport(false, ToolMode.Grind);
+            var tut = new TutorialFlow();
+            int heatAt = tut.IndexOf("heat");
+            bool heated = false;
+            for (int i = 0; i < tut.Count; i++)
+            {
+                string id = tut.Steps[i].Id;
+                if (id == "furnace") { sb.CaptureSetOrder(0); sb.CaptureRefreshGoals(); }
+                if (!heated && i > heatAt) { sb.CaptureThermal(ForgeEnv.Furnace, 90.0); heated = true; }
+                bool hammerTool = id == "strike" || id == "to_grind"; // the tool the step expects the player to be holding when it appears
+                sb.CaptureShowReport(id == "report" || id == "deliver" || id == "done", hammerTool ? ToolMode.Hammer : ToolMode.Grind);
+                sb.CaptureTutorialStep(id, true);
+                Shot(sb, cam, tdir, (i + 1).ToString("D2") + "_" + id);
+            }
+
+            bool ok = removedKg > 0.001 && screenHit != null && screenHit.Hit && facet.HasBevel && System.Math.Abs(facet.EdgeAngleDeg - 20.0) < 4.0;
             Debug.Log(ok ? "[Capture] INPUT PATH OK" : "[Capture] INPUT PATH FAILED");
             Debug.Log("[Capture] done: " + dir);
             EditorApplication.Exit(ok ? 0 : 1);

@@ -34,8 +34,9 @@ def mat(name, color, rough=0.5, metal=0.0):
     if name in MATS:
         return MATS[name]
     m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    b = m.node_tree.nodes.get("Principled BSDF")
+    if m.node_tree is None:  # Blender < 5 needs use_nodes; later versions always have a node tree (use_nodes is deprecated)
+        m.use_nodes = True
+    b = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
     b.inputs["Base Color"].default_value = (color[0], color[1], color[2], 1.0)
     b.inputs["Roughness"].default_value = rough
     b.inputs["Metallic"].default_value = metal
@@ -63,6 +64,13 @@ class Builder:
         self.bm = bmesh.new()
         self.mats = []
         self.mat_index = {}
+        self.smooth_faces = set()
+
+    def _mark_smooth(self, verts, side_only):
+        """Round surfaces (cylinder sides, spheres) get smooth shading; flat caps stay flat. Box faces never come here."""
+        for f in {f for v in verts for f in v.link_faces}:
+            if not side_only or len(f.verts) <= 4:
+                self.smooth_faces.add(f)
 
     def _assign(self, verts, m):
         if m.name not in self.mat_index:
@@ -100,12 +108,14 @@ class Builder:
             bmesh.ops.rotate(self.bm, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi / 2, 3, "X"), verts=verts)
         bmesh.ops.translate(self.bm, vec=center, verts=verts)
         self._assign(verts, m)
+        self._mark_smooth(verts, side_only=True)  # cap n-gons have more than 4 vertices; side quads and tris do not
 
     def sphere(self, radius, center, m, segments=16):
         res = bmesh.ops.create_uvsphere(self.bm, u_segments=segments, v_segments=segments // 2, radius=radius)
         verts = res["verts"]
         bmesh.ops.translate(self.bm, vec=center, verts=verts)
         self._assign(verts, m)
+        self._mark_smooth(verts, side_only=False)
 
     def quad(self, size_xy, center, m):
         sx, sy = size_xy
@@ -115,15 +125,34 @@ class Builder:
         self.bm.faces.new(v)
         self._assign(v, m)
 
+    def _box_project_uv(self):
+        """UV in metres (1 unit = 1 m) by projecting each face along its dominant normal axis, so texel density is the same on
+        every model and face; the material's tiling then decides how many repeats per metre."""
+        uv = self.bm.loops.layers.uv.verify()
+        for f in self.bm.faces:
+            n = f.normal
+            ax = max(range(3), key=lambda i: abs(n[i]))
+            u, v = [i for i in range(3) if i != ax]
+            for loop in f.loops:
+                co = loop.vert.co
+                loop[uv].uv = (co[u], co[v])
+
     def finish(self):
         bmesh.ops.recalc_face_normals(self.bm, faces=self.bm.faces[:])
+        self._box_project_uv()
+        # Split edges between smooth and flat faces so smooth normals do not leak into flat caps and boxes.
+        mixed = [e for e in self.bm.edges if len({f in self.smooth_faces for f in e.link_faces}) > 1]
+        self.bm.faces.index_update()
+        smooth_idx = {f.index for f in self.smooth_faces}
+        if mixed:
+            bmesh.ops.split_edges(self.bm, edges=mixed)  # keeps every face and its index
         me = bpy.data.meshes.new(self.name)
         self.bm.to_mesh(me)
         self.bm.free()
         for m in self.mats:
             me.materials.append(m)
         for p in me.polygons:
-            p.use_smooth = False
+            p.use_smooth = p.index in smooth_idx
         ob = bpy.data.objects.new(self.name, me)
         bpy.context.collection.objects.link(ob)
         return ob
@@ -159,7 +188,8 @@ def make_furnace():
 def make_quench_tank():
     b = Builder("QuenchTank")
     L, W, H, t = 0.80, 0.40, 0.40, 0.035
-    b.box((L, W, t), (0, 0, t / 2), wood())                                # bottom
+    # Bottom plank sits inside the walls and 2 mm above the floor so no face is coplanar with a wall face (z-fighting).
+    b.box((L - 2 * t, W - 2 * t, t - 0.002), (0, 0, 0.002 + (t - 0.002) / 2), wood())
     b.box((L, t, H), (0, -(W - t) / 2, H / 2), wood())                     # front
     b.box((L, t, H), (0, (W - t) / 2, H / 2), wood())                      # back
     b.box((t, W - 2 * t, H), (-(L - t) / 2, 0, H / 2), wood())             # left end
@@ -189,6 +219,27 @@ def make_handle():
     b.cylinder(0.017, 0.015, 0.20, (-0.122, 0, 0), "X", leather(), 14)     # grip, x from -0.222 to -0.022
     b.sphere(0.026, (-0.248, 0, 0), iron(), 16)                            # pommel
     return b.finish()
+
+
+# Expected size (m, x y z), tolerance 5 mm, and triangle budget. main() fails when a model drifts, so a bad rebuild cannot ship silently.
+EXPECTED = {
+    "anvil": ((0.93, 0.28, 0.38), 124),
+    "furnace": ((0.90, 0.80, 1.50), 74),
+    "quench_tank": ((0.80, 0.41, 0.40), 110),
+    "grinder": ((0.44, 0.37, 0.37), 252),
+    "handle": ((0.27, 0.18, 0.05), 288),
+}
+
+
+def check(name, size, tris):
+    want, budget = EXPECTED[name]
+    errs = []
+    for axis, w, g in zip("xyz", want, size):
+        if abs(w - g) > 0.005:
+            errs.append("%s size %.3f != %.3f" % (axis, g, w))
+    if tris > budget:
+        errs.append("%d triangles > budget %d" % (tris, budget))
+    return errs
 
 
 MODELS = [("anvil", make_anvil), ("furnace", make_furnace), ("quench_tank", make_quench_tank),
@@ -248,12 +299,17 @@ def main():
     if preview:
         os.makedirs(os.path.join(out_dir, "previews"), exist_ok=True)
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    failed = []
     for name, fn in MODELS:
         ob = fn()
         ob.name = name
         verts, tris, lo, hi, size = stats(ob)
         print("MODEL %s verts=%d tris=%d size=%.3f x %.3f x %.3f m  min=(%.3f,%.3f,%.3f)" %
               (name, verts, tris, size.x, size.y, size.z, lo.x, lo.y, lo.z))
+        errs = check(name, size, tris)
+        if errs:
+            print("CHECK FAILED %s: %s" % (name, "; ".join(errs)))
+            failed.append(name)
         export_fbx(ob, os.path.join(out_dir, name + ".fbx"))
         if preview:
             try:
@@ -262,6 +318,9 @@ def main():
                 print("PREVIEW FAILED %s: %s" % (name, e))
         bpy.data.objects.remove(ob)
     print("DONE %s" % out_dir)
+    if failed:
+        raise SystemExit("model checks failed: " + ", ".join(failed))
 
 
-main()
+if __name__ == "__main__":
+    main()

@@ -52,6 +52,29 @@ namespace ForgeBorn.Tests
         }
 
         [Test]
+        public void EveryVietnameseEntryKeepsThePlaceholdersOfItsSource()
+        {
+            foreach (var kv in Loc.VietnameseEntries)
+                for (int n = 0; n < 8; n++)
+                    Assert.AreEqual(kv.Key.Contains("{" + n + "}"), kv.Value.Contains("{" + n + "}"), "placeholder {" + n + "} in: " + kv.Key);
+        }
+
+        [Test]
+        public void F_NeverThrowsOnABadTemplate()
+        {
+            Loc.Current = Language.English;
+            Assert.DoesNotThrow(() => Loc.F("broken {0", "x"));
+            Assert.DoesNotThrow(() => Loc.F("needs {0} and {1}", "x"));
+        }
+
+        [Test]
+        public void CareerParse_ClampsNegativeMoneyToZero()
+        {
+            Assert.AreEqual(0, Career.Parse("career1;money=-500;best=").Money);
+            Assert.AreEqual(120, Career.Parse("career1;money=120;best=").Money);
+        }
+
+        [Test]
         public void EveryTutorialStepHasAVietnameseTitleWhyAndAction()
         {
             var tut = new TutorialFlow();
@@ -62,7 +85,7 @@ namespace ForgeBorn.Tests
                 Assert.IsTrue(Loc.HasVietnamese(st.Action), "action: " + st.Action);
             }
             Assert.IsTrue(Loc.HasVietnamese("Too cold to forge! Put it back in the Furnace."));
-            Assert.IsTrue(Loc.HasVietnamese("The blade cracked. Press Order for a new blade, or try Oil next time."));
+            Assert.IsTrue(Loc.HasVietnamese("The blade cracked. Press Order for a new blade and quench gentler next time."));
         }
 
         [Test]
@@ -105,11 +128,34 @@ namespace ForgeBorn.Tests
         }
 
         [Test]
+        public void EveryAdviceTemplateHasVietnameseText()
+        {
+            // Reads the advisor source so a template added later cannot be forgotten: every `new Advice(AdviceLevel.X, "template"` must be translated.
+            string src = System.IO.File.ReadAllText(System.IO.Path.Combine(UnityEngine.Application.dataPath, "_ForgeBorn/Scripts/Domain/Evaluation/ProcessAdvisor.cs"));
+            var found = System.Text.RegularExpressions.Regex.Matches(src, @"AdviceLevel\.(?:Info|Warn|Danger|Good), ""([^""]+)""");
+            Assert.GreaterOrEqual(found.Count, 15);
+            foreach (System.Text.RegularExpressions.Match m in found) Assert.IsTrue(Loc.HasVietnamese(m.Groups[1].Value), m.Groups[1].Value);
+        }
+
+        [Test]
+        public void EveryQuenchAndForecastStringHasVietnameseText()
+        {
+            foreach (string t in new[]
+            {
+                "Quench {0} K/s: too slow, it will not harden", "Quench {0} K/s: only partly hardening", "Quench {0} K/s: hardening fully",
+                "Quench {0} K/s: CRACK RISK, take it out of the bath", "Temper {0} C: 10 min {1}, 1 h {2}, 4 h {3} HRC (aim {4})",
+                "Forging heat: {0} C and up (blue ring = too cold)", "Cold metal: click again within 1.5 s to strike anyway.", "Next:", "Assist: {0}", "Light", "Strong", "Angle {0} deg", "Flip", "grind angle: {0} deg", "Blade turned over: other face up", "Blade turned back", "Undo",
+            })
+                Assert.IsTrue(Loc.HasVietnamese(t), t);
+        }
+
+        [Test]
         public void LanguageSetting_RoundTripsAndOldSettingsStayAutomatic()
         {
             var s = new GameSettings { Lang = 1 };
             Assert.AreEqual(1, GameSettings.Parse(s.Serialize()).Lang);
             Assert.AreEqual(-1, GameSettings.Parse("v1;res=1;fs=0;tier=-1;vol=1.00").Lang);
+            Assert.AreEqual(Language.Vietnamese, new GameSettings().ResolveLanguage()); // automatic = Vietnamese
             Assert.AreEqual(Language.English, new GameSettings { Lang = 0 }.ResolveLanguage());
             Assert.AreEqual(Language.Vietnamese, new GameSettings { Lang = 1 }.ResolveLanguage());
             Assert.AreEqual(Language.Vietnamese, Loc.FromSystem(true));

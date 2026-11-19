@@ -34,6 +34,7 @@ namespace ForgeBorn.Domain.Commands
             int first = int.MaxValue, last = -1;
             int total = 0, contact = 0;
             double rpmFactor = cmd.WheelRpm / cmd.Wheel.RatedRpm;
+            double tanHalf = cmd.BevelAngleDeg > 0.0 ? Math.Tan(0.5 * cmd.BevelAngleDeg * Math.PI / 180.0) : 0.0;
             // Grinding only removes metal, so the bounds at stroke start stay a valid superset for every substep.
             BladeBounds bounds = BladeRaycaster.ComputeBounds(profile);
 
@@ -46,7 +47,7 @@ namespace ForgeBorn.Domain.Commands
                 for (int k = 0; k < n && a.DeltaSeconds > 0.0; k++)
                 {
                     if (++total > st.MaxSubsteps) return GrindResult.Rejected("too many substeps");
-                    Substep(profile, bounds, a.RayOrigin, a.RayDirection, a.PressureN, dt, cmd.Wheel, material, st, rpmFactor,
+                    Substep(profile, bounds, a.RayOrigin, a.RayDirection, a.PressureN, dt, cmd.Wheel, material, st, rpmFactor, tanHalf,
                         ref contact, ref first, ref last);
                 }
             }
@@ -64,7 +65,7 @@ namespace ForgeBorn.Domain.Commands
                     Vec3d o = Vec3d.Lerp(a.RayOrigin, b.RayOrigin, u);
                     Vec3d d = Vec3d.Lerp(a.RayDirection, b.RayDirection, u);
                     double pr = a.PressureN + (b.PressureN - a.PressureN) * u;
-                    Substep(profile, bounds, o, d, pr, dt, cmd.Wheel, material, st, rpmFactor, ref contact, ref first, ref last);
+                    Substep(profile, bounds, o, d, pr, dt, cmd.Wheel, material, st, rpmFactor, tanHalf, ref contact, ref first, ref last);
                 }
             }
 
@@ -85,6 +86,7 @@ namespace ForgeBorn.Domain.Commands
             if (cmd.Samples.Count == 0) return "no samples";
             if (cmd.Samples.Count > st.MaxSamples) return "too many samples";
             if (!(cmd.WheelRpm > 0.0) || double.IsInfinity(cmd.WheelRpm)) return "invalid wheel rpm";
+            if (double.IsNaN(cmd.BevelAngleDeg) || (cmd.BevelAngleDeg != 0.0 && (cmd.BevelAngleDeg < 5.0 || cmd.BevelAngleDeg > 60.0))) return "invalid bevel angle";
             if (!(cmd.Wheel.RatedRpm > 0.0) || !(cmd.Wheel.FootprintHalfLengthM > 0.0) || !(cmd.Wheel.FootprintHalfWidthM > 0.0))
                 return "invalid wheel";
             double totalDt = 0.0;
@@ -102,7 +104,7 @@ namespace ForgeBorn.Domain.Commands
         }
 
         private static void Substep(BladeProfile p, BladeBounds bounds, Vec3d origin, Vec3d dir, double pressure, double dt, AbrasiveWheel w,
-            MaterialData m, GrindSolverSettings st, double rpmFactor, ref int contact, ref int first, ref int last)
+            MaterialData m, GrindSolverSettings st, double rpmFactor, double tanHalf, ref int contact, ref int first, ref int last)
         {
             if (pressure <= 0.0 || dt <= 0.0) return; // tool lifted / not pressing: nothing happens
             BladeHit hit;
@@ -110,10 +112,66 @@ namespace ForgeBorn.Domain.Commands
             contact++;
             double depth = w.RemovalCoeffMPerNs * pressure * dt * rpmFactor / m.GrindResistance;
             if (depth <= 0.0) return;
-            ApplyKernel(p, hit, w, depth, st.MinThicknessM, ref first, ref last);
+            ApplyKernel(p, hit, w, depth, st.MinThicknessM, tanHalf, ref first, ref last);
         }
 
-        private static void ApplyKernel(BladeProfile p, BladeHit hit, AbrasiveWheel w, double depth, double minThickness,
+        /// <summary>Within this distance (m) of the edge tip, a grind with a set angle cuts a facet instead of a free groove.</summary>
+        public const double FacetZoneM = 0.012;
+
+        /// <summary>
+        /// Angle-held grinding at one station. Each ring vertex near the pointer that sits above the facet plane (anchored at the edge tip with a
+        /// tip half thickness of minThickness/2, rising at tan(half angle) per metre behind the tip) is lowered toward that plane by at most this
+        /// substep's removal depth. Passes therefore converge on one plane whatever the pointer offset, and metal is only ever removed.
+        /// Returns false when the hit is not a face hit near the edge, so the caller falls back to the free groove.
+        /// </summary>
+        private static bool TryFacet(BladeProfile p, int s, Vec2d n, Vec2d c, double wx, double depth, double rc, double tanHalf,
+            double minThickness, int pc, ref int first, ref int last)
+        {
+            if (Math.Abs(n.Y) < 0.7) return false;
+            double yTip = double.MinValue;
+            for (int j = 0; j < pc; j++)
+            {
+                double y = p.Point(s, j).X;
+                if (y > yTip) yTip = y;
+            }
+            double fromTip = yTip - c.X;
+            if (fromTip > FacetZoneM || fromTip < -0.001) return false;
+
+            double sigma = n.Y >= 0.0 ? 1.0 : -1.0;
+            double hTip = 0.5 * minThickness;
+            double step = depth * wx;
+            Span<double> orig = stackalloc double[pc * 2];
+            Span<bool> moved = stackalloc bool[pc];
+            bool any = false;
+            for (int j = 0; j < pc; j++)
+            {
+                Vec2d pt = p.Point(s, j);
+                orig[j * 2] = pt.X;
+                orig[j * 2 + 1] = pt.Y;
+                moved[j] = false;
+                double dist = Math.Abs(pt.X - c.X);
+                if (dist >= rc) continue;
+                double wr = Math.Cos(Math.PI * 0.5 * dist / rc);
+                wr *= wr;
+                double excess = sigma * pt.Y - (hTip + (yTip - pt.X) * tanHalf);
+                if (excess <= 0.0) continue;
+                double shift = Math.Min(excess, step * wr);
+                if (shift <= 1e-12) continue;
+                p.SetPoint(s, j, new Vec2d(pt.X, pt.Y - sigma * shift));
+                moved[j] = true;
+                any = true;
+            }
+            if (!any) return true;
+            if (p.StationSelfIntersectsTouching(s, moved))
+            {
+                for (int j = 0; j < pc; j++) p.SetPoint(s, j, new Vec2d(orig[j * 2], orig[j * 2 + 1]));
+                return true;
+            }
+            Touch(s, ref first, ref last);
+            return true;
+        }
+
+        private static void ApplyKernel(BladeProfile p, BladeHit hit, AbrasiveWheel w, double depth, double minThickness, double tanHalf,
             ref int first, ref int last)
         {
             double lx = w.FootprintHalfLengthM, rc = w.FootprintHalfWidthM;
@@ -138,6 +196,7 @@ namespace ForgeBorn.Domain.Commands
                 wx *= wx;
                 double planeDepth = depth * wx;
                 if (planeDepth <= 0.0) continue;
+                if (tanHalf > 0.0 && TryFacet(p, s, n, c, wx, depth, rc, tanHalf, minThickness, pc, ref first, ref last)) continue;
 
                 double minS = double.MaxValue, maxT = 0.0;
                 for (int j = 0; j < pc; j++)

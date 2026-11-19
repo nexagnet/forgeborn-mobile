@@ -61,7 +61,7 @@ Lưu ý: công cụ chỉ hiện trong Claude nếu phiên mở **sau** khi serv
 
 ### P0.5 đã xong
 - Thiết kế: `GAME_DESIGN.md` §13–§16 (UI ngang 16:9, art bible, danh sách âm thanh, bảng kinh tế).
-- `tools/blender/forge_models.py`: chạy `"C:\Program Files\Blender Foundation\Blender 5.3\blender.exe" -b -P tools/blender/forge_models.py -- <thư mục xuất> [--preview]`. Xuất 5 FBX (đe, lò, bể tôi, bánh mài, chuôi), mô hình còn **thô và vuông**. Năm file nằm ở `Assets/_ForgeBorn/Art/Models`, đã nhập vào Unity đúng kích thước và vật liệu.
+- `tools/blender/forge_models.py`: chạy `"C:\Program Files\Blender Foundation\Blender 5.3\blender.exe" -b -P tools/blender/forge_models.py -- <thư mục xuất> [--preview]`. Xuất 5 FBX (đe, lò, bể tôi, bánh mài, chuôi), có tô mượt cho mặt cong, UV theo mét, và tự kiểm kích thước/số tam giác (`EXPECTED`; lệch thì script thoát lỗi). FBX nằm ở `Assets/_ForgeBorn/Resources/Art/Models` (để nạp lúc chạy). **Đang dùng trong cảnh:** đe, lò (`SandboxProps.Place`, thu nhỏ cho khớp khung nhìn 0,68 m) và chuôi (`SandboxProps.AttachHandle`, gắn vào lưỡi). **Chưa dùng:** bể tôi và bánh mài (chưa có chỗ trong bố cục HUD). Unity lật trục X khi nhập nên mô hình xoay 180° quanh Y.
 - `PlayerAutomation.cs`: `-fb-screenshot <file> [-fb-wait 3]`, `-fb-benchmark <giây> [-fb-out file]` cho bản .exe. Biên dịch sạch, **chưa chạy**.
 - `ForgeBornBuild.cs`: menu `ForgeBorn > Build Windows`, ra `build/out/win/ForgeBorn.exe` và `build/out/win_build.txt`. Mono (không có IL2CPP cho Windows).
 
@@ -98,3 +98,45 @@ P4 (bóng đổ, mô hình đe/lò, âm thanh thật, tầng chất lượng) ho
 - Máy chỉ có Intel UHD: mọi số FPS là mốc thấp, không khẳng định cho GPU khác.
 
 Việc cần bạn: P5 (chơi bản .exe), đăng nhập lại Unity Hub khi hết hạn, và các quyết định về phát hành/điện thoại.
+
+### P4: tình trạng sau lượt review (2026-11-18)
+- **Xong:** đe/lò/chuôi FBX trong cảnh; miệng lò sáng theo trạng thái (`SandboxProps.SetFurnaceGlow`, 0.2 khi không nung, 1 khi chọn Lò). Chưa xem hiệu ứng đổi sáng khi chơi thật (ảnh chụp batchmode không chạy `Update`).
+- **Bóng đổ: chưa làm, và tiền đề trong kế hoạch sai.** Chỉ `ForgeBornBladeSteel.shader` có pass `ShadowCaster`; `ForgeBornProp.shader` không có pass đổ bóng và **không shader nào nhận bóng** (không lấy `_MainLightShadowCoord`). Bật bóng nghĩa là viết phần nhận bóng cho Prop shader + bật bóng ở URP asset, rồi đo lại FPS với mốc ở `BENCHMARKS.md` (mài 17.9 ms avg trên Intel UHD). Nên đo trước khi giữ lại.
+- **Âm thanh CC0 (chưa nhập, chưa nghe):** workflow tìm và kiểm tra trang giấy phép bằng công cụ fetch (bản tóm tắt, không phải HTML thô). Mài: Freesound `shelbyshark/501170` "Bench Grinder Metal Bar" (41.8 s, CC0, cần cắt đoạn lặp), `PlumForestPodcast/519671` "Sharpening Blade - Long Blade" (14.5 s), `Kinoton/347446` "Angle grinder on/off grinding" (41.3 s). Tôi: BigSoundBank `quenching-cooling-1..5` (s1694-s1698, Joseph SARDIN, CC0, 1-3 s). Trước khi nhập: nghe thử (có lời/nhạc nền không), xác nhận lại giấy phép trên trang, rồi ghi vào `CREDITS.md`. Freesound thường cần đăng nhập để tải.
+- **Chưa vào cảnh:** bể tôi và bánh mài (chưa có chỗ trong bố cục HUD). Tầng Low cho iGPU chưa đo.
+- **Cổng P5:** `build/out/win/ForgeBorn.exe` đã build lại sau các sửa này (2026-11-18, 124 MB, 0 lỗi). Có thể chơi thử.
+
+
+### Phản hồi chơi thử P5 (2026-11-18) và các sửa
+- Phản hồi: chạy trọn vòng không lỗi; khó điều khiển (búa khó nhắm, mài khó giữ đường); camera không lia linh hoạt; muốn giao diện tiếng Việt.
+- **Tiếng Việt mặc định:** `GameSettings.ResolveLanguage()` trả tiếng Việt khi `lang=-1` (trước đây chỉ khi hệ điều hành là tiếng Việt). Người đã chọn English (`lang=0`) vẫn giữ. Đã xem ảnh chụp từ `.exe`.
+- **Camera:** chuột phải hoặc chuột giữa kéo lia (X và Y) ở mọi công cụ; phím mũi tên lia khi giữ; xoay lưỡi chỉ còn ở chế độ Xem (chuột trái). Đổi công cụ Mài/Búa vẫn reset góc nhìn.
+- **Trợ giúp ngắm** (`AimAssist.cs`, chỉ hiển thị, không đổi mô hình mài/búa): vòng theo chuột, xanh khi trên lưỡi, đỏ khi ngoài; ở Mài có thêm đường vàng dọc mép +Y. **Chưa kiểm khi chơi thật**: cảm giác có đủ giúp hay không là việc của lượt chơi kế.
+
+### Cải tiến cách chơi (2026-11-18, theo đề xuất sau phản hồi P5)
+- **Vòng ngắm theo nhiệt độ (Búa):** cam = đủ nóng để rèn (>= `ForgeMinTempK`), xanh dương = nguội (đập có thể nứt), đỏ = trượt lưỡi. Mài: xanh = trên lưỡi.
+- **Bảng "Mục tiêu"** (góc phải): kiểm tra trực tiếp theo đơn đang làm, cập nhật 2 lần/giây: mép, độ cứng, cong, xoắn, khối lượng (nếu đơn có giới hạn). Xanh = đạt (điểm thành phần >= 0.6, cùng ngưỡng với lý do khi giao), cam = chưa. Đã xem ảnh `09_order_goals_checklist`. Hiển thị góc mép hiện tại so với mục tiêu nằm ở dòng "Mép".
+- **Hoàn tác Ctrl+Z:** chụp snapshot trước mỗi nhát búa và mỗi lần bấm chuột để mài, tối đa 20; đổi phôi/tải save thì xóa. **Chưa thử khi chơi thật** (không có test tự động vì nằm trong MonoBehaviour).
+- **Chưa làm:** (3) khóa góc mài theo nấc: chưa nắm cách góc vát hình thành từ đường kéo nên không thêm mò; (6) chỉnh độ khó đơn 2 và 3: cần số liệu từ lượt chơi.
+
+### Giai đoạn 0 đến 2 và 4a của kế hoạch cải tiến cách chơi (2026-11-18)
+- **Nhật ký lượt chơi (giai đoạn 0):** mỗi lần giao hàng ghi một dòng vào `playlog.csv` cạnh file save (`Application.persistentDataPath`). Chỉ nằm trên máy, không gửi đi. Cột: đơn, đã giao, hạng, điểm, góc mép, HRC, cong, xoắn, khối lượng, nứt, lãi ròng, giây, số nhát búa, nhát trượt, nhát nguội, số lần hoàn tác, số lần mài (`PlayStats`, `PlayLog` trong `Domain/Evaluation/PlayStats.cs`). Chưa có dòng nào vì chưa chơi bản này.
+- **Trợ giúp ngắm 3 nấc (giai đoạn 1):** Cài đặt, nút "Trợ giúp": Tắt / Nhẹ (mặc định) / Mạnh. Nhẹ: vòng ngắm có kích thước đúng vùng tiếp xúc của đá hoặc mặt búa, đường dẫn mài ở khoảng cách dưới mép theo từng loại đá, gợi ý. Mạnh: thêm hút con trỏ (trong 28 px) vào đường dẫn khi mài. Búa: bấm lên chỗ nguội thì lần đầu chỉ cảnh báo, bấm lại trong 1,5 giây mới đập; nhát không trúng thì không tốn bước hoàn tác.
+- **Kết quả nghiên cứu mài: xem `GRIND_ANGLE_RESEARCH.md`.** Mô hình mài **không có góc điều khiển được**: góc mép nhảy loạn theo lệch 1 mm và theo lực ấn. Đường ray chỉ giữ tay trên một đường có cắt ra mép vát, **không bảo đảm góc 20°**. Cách chữa thật là thêm tham số góc mài vào `GrindSolver` (cần quyết định vì đổi mô hình).
+- **Thông tin trước khi hành động (giai đoạn 2):** bảng bên phải gồm "Bước tiếp" (`NextStepAdvisor`), dòng tốc độ nguội khi tôi (`QuenchMonitor`: quá chậm / cứng một phần / cứng hoàn toàn / nguy cơ nứt), dự báo ram ở 250 °C (10 phút, 1 giờ, 4 giờ; `TemperForecast`, khớp với lò trong 3 HRC) và nhiệt độ rèn khi chọn Búa. Tắt khi trợ giúp = Tắt.
+- **Phát hiện vật lý:** tôi dầu không làm thép này cứng (0 martensit, 22 HRC); chỉ nước cứng (62 HRC). Mài một mặt bị báo là "cong". Chi tiết ở `MODEL_FIDELITY.md`.
+- **Nhãn bằng chứng (4a):** `MODEL_FIDELITY.md`. Chưa mô hình nào có nhãn "số liệu thật" vì chưa có nguồn.
+- **Test:** Domain 96/96 (`GameplayAidsTests` mới, 15 test), Unity EditMode 59/59.
+
+### Bản Android (2026-11-18)
+- Lệnh: `Unity.exe -batchmode -nographics -projectPath . -executeMethod ForgeBorn.EditorTools.ForgeBornBuild.BuildAndroid` (Editor phải đóng) hoặc menu `ForgeBorn > Build Android`. Ra `build/out/android/ForgeBorn.apk`, báo cáo `build/out/android_build.txt`. IL2CPP, ARM64, màn hình ngang, ký bằng khóa debug (đủ để cài trực tiếp, không đủ để lên Google Play).
+- Trên điện thoại: bật "Cài ứng dụng không rõ nguồn" cho trình quản lý file, chép file `.apk` sang máy rồi mở nó; hoặc `adb install -r ForgeBorn.apk`.
+- Đã sửa cho cảm ứng: bỏ ép màn hình dọc (giao diện thiết kế ngang), thêm nút "Hoàn tác" (không có Ctrl+Z trên cảm ứng).
+- **Chưa kiểm trên máy thật** (đây là lần đầu có APK). Chưa có: lia camera bằng cảm ứng (lia chỉ có chuột phải/giữa và phím mũi tên), bóng, âm thanh CC0; hiệu năng chưa đo trên Android; vòng ngắm ẩn khi cảm ứng.
+
+### Mài theo góc đặt (2026-11-18)
+- Mô hình: xem `GRIND_ANGLE_RESEARCH.md` (mục "Đã sửa") và `MODEL_FIDELITY.md`. Gần mép, `GrindSolver` cắt về mặt phẳng nghiêng theo góc đặt; góc cuối không phụ thuộc tay, lực hay loại đá.
+- Điều khiển: nút "Góc 20°" (cột trái) hoặc Q/E đổi nấc 10° đến 40°; nút "Lật" hoặc F lật lưỡi để mài mặt kia (cả hai mặt mới đủ góc; một mặt ra khoảng nửa). Mở đơn hàng tự chọn nấc gần nhất. Dòng "Bước tiếp" nhắc lật khi mới mài một mặt.
+- Chấm điểm đổi: góc mép đo ở 1 và 3 mm sau đầu mép; độ cong đo theo tâm khung bao. Có thể làm điểm các blade cũ khác đi chút.
+- Test: Domain 107/107 (`GrindFacetTests` mới, 12 test), Unity EditMode 59/59, capture "INPUT PATH OK" gồm kiểm góc 20° qua đường chạm thật (hội tụ 20,0° sau 4 vòng).
+- **Chưa kiểm khi chơi thật:** cảm giác số nhát (đá vừa 80 N chậm cho phôi dày; đá thô 150 N nhanh), vị trí nút "Góc" và "Lật" trên điện thoại.

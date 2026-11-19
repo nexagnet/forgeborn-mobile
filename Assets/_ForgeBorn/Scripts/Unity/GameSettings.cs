@@ -24,23 +24,26 @@ namespace ForgeBorn.UnityLayer
         public float Volume = 1f;
         /// <summary>-1 = automatic (Vietnamese on a Vietnamese system), otherwise a Language value.</summary>
         public int Lang = -1;
+        /// <summary>Aiming help: 0 = off, 1 = light (ring, guide line, hints), 2 = strong (the pointer is also held on the grind line).</summary>
+        public int Assist = 1;
 
         public static string TierName(int tier) { return Loc.T(tier < 0 ? "Auto" : ((QualityTier)tier).ToString()); }
 
-        public Language ResolveLanguage() { return Lang >= 0 ? (Language)Lang : Loc.FromSystem(Application.systemLanguage == SystemLanguage.Vietnamese); }
+        public Language ResolveLanguage() { return Lang >= 0 ? (Language)Lang : Language.Vietnamese; } // Vietnamese-first: automatic means Vietnamese; English only if the player picked it
 
         public void Clamp()
         {
             ResolutionIndex = Mathf.Clamp(ResolutionIndex, 0, Resolutions.Length - 1);
             Tier = Mathf.Clamp(Tier, -1, 2);
             Lang = Mathf.Clamp(Lang, -1, 1);
+            Assist = Mathf.Clamp(Assist, 0, 2);
             Volume = Mathf.Clamp01(Volume);
         }
 
         public string Serialize()
         {
             return "v1;res=" + ResolutionIndex + ";fs=" + (Fullscreen ? 1 : 0) + ";tier=" + Tier
-                + ";vol=" + Volume.ToString("0.00", CultureInfo.InvariantCulture) + ";lang=" + Lang;
+                + ";vol=" + Volume.ToString("0.00", CultureInfo.InvariantCulture) + ";lang=" + Lang + ";assist=" + Assist;
         }
 
         /// <summary>Never throws: anything unreadable falls back to the default for that field.</summary>
@@ -61,6 +64,7 @@ namespace ForgeBorn.UnityLayer
                         case "res": if (int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out i)) s.ResolutionIndex = i; break;
                         case "fs": s.Fullscreen = val == "1"; break;
                         case "tier": if (int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out i)) s.Tier = i; break;
+                        case "assist": if (int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out i)) s.Assist = i; break;
                         case "lang": if (int.TryParse(val, NumberStyles.Integer, CultureInfo.InvariantCulture, out i)) s.Lang = i; break;
                         case "vol": if (float.TryParse(val, NumberStyles.Float, CultureInfo.InvariantCulture, out f)) s.Volume = f; break;
                     }

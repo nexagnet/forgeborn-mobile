@@ -38,7 +38,10 @@ namespace ForgeBorn.Domain.Orders
         internal void Insert(int index, string template, params string[] args)
         {
             Parts.Insert(index, new ReasonPart(template, args));
-            Reasons.Insert(index, string.Format(System.Globalization.CultureInfo.InvariantCulture, template, (object[])args));
+            string text;
+            try { text = string.Format(System.Globalization.CultureInfo.InvariantCulture, template, (object[])args); }
+            catch (FormatException) { text = template; } // braces in a template or argument must not throw mid-game
+            Reasons.Insert(index, text);
         }
     }
 
@@ -219,7 +222,7 @@ namespace ForgeBorn.Domain.Orders
                 if (key == "money")
                 {
                     long m;
-                    if (long.TryParse(val, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out m)) c.Money = m;
+                    if (long.TryParse(val, System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture, out m)) c.Money = Math.Max(0, m); // the file is plain text and hand-editable: never load negative money
                 }
                 else if (key == "up")
                 {

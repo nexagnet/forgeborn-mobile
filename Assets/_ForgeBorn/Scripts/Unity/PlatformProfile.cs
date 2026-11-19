@@ -47,11 +47,13 @@ namespace ForgeBorn.UnityLayer
             }
         }
 
+        /// <summary>Spark particle budget per tier; the single source for WithTier and the Android profile.</summary>
+        public static int SparksFor(QualityTier tier) { return tier == QualityTier.High ? 300 : (tier == QualityTier.Medium ? 150 : 60); }
+
         /// <summary>Same platform, different quality tier (settings screen). Pure, so it can be tested.</summary>
         public static PlatformProfile WithTier(PlatformProfile p, QualityTier tier)
         {
-            int sparks = tier == QualityTier.High ? 300 : (tier == QualityTier.Medium ? 150 : 60);
-            return new PlatformProfile(p.Name, tier, p.TargetFps, sparks, tier != QualityTier.Low, p.UseHandheldHaptics, p.Simulated);
+            return new PlatformProfile(p.Name, tier, p.TargetFps, SparksFor(tier), tier != QualityTier.Low, p.UseHandheldHaptics, p.Simulated);
         }
 
         /// <summary>Pure function (EditMode-testable). systemMemoryMb is SystemInfo.systemMemorySize.</summary>
@@ -66,8 +68,7 @@ namespace ForgeBorn.UnityLayer
                 case RuntimePlatform.Android:
                 {
                     QualityTier t = systemMemoryMb >= 6000 ? QualityTier.High : (systemMemoryMb >= 3000 ? QualityTier.Medium : QualityTier.Low);
-                    int sparks = t == QualityTier.High ? 300 : (t == QualityTier.Medium ? 150 : 60);
-                    return new PlatformProfile("android", t, 60, sparks, t != QualityTier.Low, true, false);
+                    return new PlatformProfile("android", t, 60, SparksFor(t), t != QualityTier.Low, true, false);
                 }
                 case RuntimePlatform.WindowsPlayer:
                     // The shipping PC target. High is what BENCHMARKS.md measured on an Intel UHD iGPU (1280x720); a Low tier is P4 work.

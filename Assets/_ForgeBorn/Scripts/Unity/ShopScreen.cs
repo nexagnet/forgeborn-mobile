@@ -22,7 +22,7 @@ namespace ForgeBorn.UnityLayer
 
         public bool IsOpen { get { return _layer.activeSelf; } }
 
-        public ShopScreen(RectTransform safe, Func<Career> career, Action<string> say, Action bought)
+        public ShopScreen(RectTransform safe, Func<Career> career, Action<string> say, Action bought, Action close)
         {
             _career = career;
             _say = say;
@@ -36,7 +36,7 @@ namespace ForgeBorn.UnityLayer
                 _rowInfo[i] = MakeText(box, "Info" + i, 20, TextAnchor.MiddleLeft, MenuScreens.RowMin(i, 0.46f), MenuScreens.RowMax(i, 0.96f), Vector2.zero, Vector2.zero);
                 _rowInfo[i].color = new Color(0.8f, 0.8f, 0.8f);
             }
-            MakeButton(box, Loc.T("Close"), MenuScreens.RowMin(4, 0.04f), MenuScreens.RowMax(4, 0.96f), Hide);
+            MakeButton(box, Loc.T("Close"), MenuScreens.RowMin(4, 0.04f), MenuScreens.RowMax(4, 0.96f), () => close()); // close = ForgeSandbox.CloseShop: hides, unpauses, saves
             _layer.SetActive(false);
         }
 

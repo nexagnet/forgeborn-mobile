@@ -42,13 +42,16 @@ namespace ForgeBorn.UnityLayer
             string[] args = Environment.GetCommandLineArgs();
             string shot = ArgValue(args, "-fb-screenshot");
             string bench = ArgValue(args, "-fb-benchmark");
-            if (shot == null && bench == null) return;
+            string frames = ArgValue(args, "-fb-frames");
+            if (shot == null && bench == null && frames == null) return;
 
             var go = new GameObject("ForgeBornAutomation");
             DontDestroyOnLoad(go);
             var pa = go.AddComponent<PlayerAutomation>();
             if (shot != null)
                 pa.StartCoroutine(pa.RunScreenshot(shot, ParseFloat(ArgValue(args, "-fb-wait"), 3f)));
+            else if (frames != null)
+                pa.StartCoroutine(pa.RunFrames(frames, ParseFloat(ArgValue(args, "-fb-duration"), 8f), ParseFloat(ArgValue(args, "-fb-fps"), 4f)));
             else
                 pa.StartCoroutine(pa.RunBenchmark(ParseFloat(bench, 8f), ArgValue(args, "-fb-out")));
         }
@@ -87,6 +90,79 @@ namespace ForgeBorn.UnityLayer
                 code = 1;
             }
             Destroy(tex);
+            Application.Quit(code);
+        }
+
+        /// <summary>
+        /// Saves frames while the real Update loop runs, so motion, glow, sparks and steam can be inspected afterwards
+        /// (ForgeBornCapture runs in batchmode and never executes Update). Same drive as the benchmark: 3 s idle, then grinding.
+        /// ForgeBorn.exe -fb-frames dir [-fb-duration 8] [-fb-fps 4]  ->  dir/f_0001.png ... and dir/frames.csv (index,seconds,phase).
+        /// Frames are read back from the player's own render target, so nothing on the user's desktop is captured.
+        /// </summary>
+        private IEnumerator RunFrames(string dir, float loadSeconds, float fps)
+        {
+            if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.persistentDataPath, "frames");
+            Directory.CreateDirectory(Path.GetFullPath(dir));
+
+            ForgeSandbox sb = null;
+            for (int i = 0; i < 120 && sb == null; i++)
+            {
+                sb = FindFirstObjectByType<ForgeSandbox>();
+                if (sb == null) yield return null;
+            }
+            if (sb == null)
+            {
+                Debug.LogError("[Automation] frames: no ForgeSandbox in the scene");
+                Application.Quit(1);
+                yield break;
+            }
+            for (int i = 0; i < WarmupFrames; i++) yield return null;
+
+            var csv = new System.Text.StringBuilder("index,seconds,phase\n");
+            float interval = 1f / Mathf.Max(0.5f, fps);
+            float start = Time.realtimeSinceStartup;
+            float total = IdleSeconds + loadSeconds;
+            float nextShot = 0f;
+            float w = Screen.width, h = Screen.height;
+            bool up = true;
+            int index = 0, code = 0;
+
+            while (true)
+            {
+                float t = Time.realtimeSinceStartup - start;
+                if (t >= total) break;
+                bool grinding = t >= IdleSeconds;
+                if (grinding)
+                {
+                    float x0 = w * (up ? 0.40f : 0.60f), x1 = w * (up ? 0.60f : 0.40f);
+                    sb.CaptureGrindDrag(new Vector2(x0, h * 0.5f), new Vector2(x1, h * 0.5f), 2, Mathf.Max(0.001f, Time.unscaledDeltaTime));
+                    up = !up;
+                }
+                if (t >= nextShot)
+                {
+                    yield return new WaitForEndOfFrame();
+                    Texture2D tex = ScreenCapture.CaptureScreenshotAsTexture();
+                    try
+                    {
+                        index++;
+                        File.WriteAllBytes(Path.Combine(dir, "f_" + index.ToString("D4", CultureInfo.InvariantCulture) + ".png"), tex.EncodeToPNG());
+                        csv.Append(index).Append(',').Append(F(t, 2)).Append(',').Append(grinding ? "grind" : "idle").Append('\n');
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogError("[Automation] frame write failed: " + e.Message);
+                        code = 1;
+                    }
+                    Destroy(tex);
+                    if (code != 0) break;
+                    nextShot += interval;
+                }
+                yield return null;
+            }
+
+            try { File.WriteAllText(Path.Combine(dir, "frames.csv"), csv.ToString()); }
+            catch (Exception e) { Debug.LogError("[Automation] frames.csv failed: " + e.Message); code = 1; }
+            Debug.Log("[Automation] frames: " + index + " -> " + Path.GetFullPath(dir));
             Application.Quit(code);
         }
 
@@ -130,8 +206,9 @@ namespace ForgeBorn.UnityLayer
             bool up = true;
             while (Time.realtimeSinceStartup < end)
             {
-                float y0 = h * (up ? 0.42f : 0.62f), y1 = h * (up ? 0.62f : 0.42f);
-                sb.CaptureGrindDrag(new Vector2(w * 0.5f, y0), new Vector2(w * 0.5f, y1), 2, Mathf.Max(0.001f, Time.unscaledDeltaTime));
+                // Along the blade (it lies horizontally), same stroke as ForgeBornCapture; the old vertical stroke crossed the blade.
+                float x0 = w * (up ? 0.40f : 0.60f), x1 = w * (up ? 0.60f : 0.40f);
+                sb.CaptureGrindDrag(new Vector2(x0, h * 0.5f), new Vector2(x1, h * 0.5f), 2, Mathf.Max(0.001f, Time.unscaledDeltaTime));
                 up = !up;
                 yield return null;
                 load.Add(Time.unscaledDeltaTime * 1000f);

@@ -62,14 +62,21 @@ namespace ForgeBorn.Domain.Commands
         public AbrasiveWheel Wheel { get; }
         public double WheelRpm { get; }
         public IReadOnlyList<GrindSample> Samples { get; }
+        /// <summary>
+        /// Included edge angle (deg) the player holds the blade at. 0 = legacy: a free cos^2 groove under the pointer. Otherwise, near the +Y edge,
+        /// each face is cut toward a flat facet inclined at half this angle and anchored at the edge tip, so the angle does not depend on where
+        /// the pointer is, only on this number (both faces ground = this angle; one face = about half).
+        /// </summary>
+        public double BevelAngleDeg { get; }
 
-        public GrindStrokeCommand(long id, double timestampS, AbrasiveWheel wheel, double wheelRpm, IReadOnlyList<GrindSample> samples)
+        public GrindStrokeCommand(long id, double timestampS, AbrasiveWheel wheel, double wheelRpm, IReadOnlyList<GrindSample> samples, double bevelAngleDeg = 0.0)
         {
             Id = id;
             TimestampS = timestampS;
             Wheel = wheel;
             WheelRpm = wheelRpm;
             Samples = samples;
+            BevelAngleDeg = bevelAngleDeg;
         }
     }
 

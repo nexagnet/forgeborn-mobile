@@ -20,7 +20,7 @@ namespace ForgeBorn.UnityLayer
         private readonly GameSettings _settings;
         private readonly Actions _actions;
         private GameObject _main, _pause, _settingsPanel;
-        private Text _continueLabel, _resLabel, _fsLabel, _tierLabel, _langLabel, _volLabel;
+        private Text _continueLabel, _resLabel, _fsLabel, _assistLabel, _tierLabel, _langLabel, _volLabel;
         private bool _settingsFromMain;
 
         public bool MainOpen { get { return _main.activeSelf; } }
@@ -138,7 +138,8 @@ namespace ForgeBorn.UnityLayer
                 _settings.ResolutionIndex = (_settings.ResolutionIndex + 1) % GameSettings.Resolutions.Length;
                 Changed();
             });
-            _fsLabel = MakeButton(box, "", RowMin(1, 0.08f), RowMax(1, 0.92f), () => { _settings.Fullscreen = !_settings.Fullscreen; Changed(); });
+            _fsLabel = MakeButton(box, "", RowMin(1, 0.08f), RowMax(1, 0.49f), () => { _settings.Fullscreen = !_settings.Fullscreen; Changed(); });
+            _assistLabel = MakeButton(box, "", RowMin(1, 0.51f), RowMax(1, 0.92f), () => { _settings.Assist = (_settings.Assist + 1) % 3; Changed(); });
             _tierLabel = MakeButton(box, "", RowMin(2, 0.08f), RowMax(2, 0.49f), () =>
             {
                 _settings.Tier = _settings.Tier >= 2 ? -1 : _settings.Tier + 1;
@@ -171,8 +172,9 @@ namespace ForgeBorn.UnityLayer
             Vector2Int r = GameSettings.Resolutions[_settings.ResolutionIndex];
             _resLabel.text = Loc.F("Window size: {0} x {1}", r.x, r.y);
             _fsLabel.text = Loc.F("Fullscreen: {0}", Loc.T(_settings.Fullscreen ? "On" : "Off"));
+            _assistLabel.text = Loc.F("Assist: {0}", Loc.T(_settings.Assist == 0 ? "Off" : _settings.Assist == 1 ? "Light" : "Strong"));
             _tierLabel.text = Loc.F("Quality: {0}", GameSettings.TierName(_settings.Tier));
-            _langLabel.text = Loc.F("Language: {0}", Loc.LanguageName(_settings.ResolveLanguage()));
+            _langLabel.text = Loc.F("Language: {0} (restart to apply)", Loc.LanguageName(_settings.ResolveLanguage()));
             _volLabel.text = Mathf.RoundToInt(_settings.Volume * 100f) + "%";
         }
     }

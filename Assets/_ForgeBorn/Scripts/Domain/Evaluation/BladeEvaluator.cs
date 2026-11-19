@@ -38,6 +38,8 @@ namespace ForgeBorn.Domain.Evaluation
         public double EdgeAngleDeg;
         /// <summary>Mean thickness (m) 0.5 mm behind the edge tip; NaN if not measurable.</summary>
         public double EdgeThickness05M;
+        /// <summary>0 = both faces of the edge ground alike, towards 1 = only one face ground (mean |zTop+zBottom| / thickness 3 mm behind the tip).</summary>
+        public double BevelAsymmetry;
         public double EdgeScore;
 
         public double MeanHrc;
@@ -108,7 +110,7 @@ namespace ForgeBorn.Domain.Evaluation
 
             double symSum = 0.0;
             int symN = 0;
-            double angSum = 0.0, t05Sum = 0.0;
+            double angSum = 0.0, t05Sum = 0.0, asymSum = 0.0;
             int angN = 0, t05N = 0;
             double hrcSum = 0.0, toughSum = 0.0;
             int midN = 0;
@@ -122,13 +124,14 @@ namespace ForgeBorn.Domain.Evaluation
 
                 if ((s - first) % stride != 0) continue;
                 SymmetryAt(p, s, ref symSum, ref symN);
-                EdgeAt(p, s, ref angSum, ref angN, ref t05Sum, ref t05N);
+                EdgeAt(p, s, ref angSum, ref angN, ref t05Sum, ref t05N, ref asymSum);
             }
 
             r.SymmetryScore = symN > 0 ? Clamp01(1.0 - 2.0 * symSum / symN) : 0.0;
 
             r.EdgeAngleDeg = angN > 0 ? angSum / angN : double.NaN;
             r.EdgeThickness05M = t05N > 0 ? t05Sum / t05N : double.NaN;
+            r.BevelAsymmetry = angN > 0 ? asymSum / angN : 0.0;
             r.HasBevel = angN > 0 && r.EdgeAngleDeg > 1.0;
             if (r.HasBevel)
             {
@@ -154,10 +157,28 @@ namespace ForgeBorn.Domain.Evaluation
             return r;
         }
 
+        /// <summary>
+        /// Centre of the section's bounding box. The bend is measured on this, not on the area centroid: grinding one face or a bevel moves the
+        /// centroid sideways by a millimetre or more without bending anything, and that used to read as a bent blade.
+        /// </summary>
+        private static Vec2d BoundsCenter(BladeProfile p, int s)
+        {
+            double yMin = double.MaxValue, yMax = double.MinValue, zMin = double.MaxValue, zMax = double.MinValue;
+            for (int j = 0; j < p.PerimeterCount; j++)
+            {
+                Vec2d v = p.Point(s, j);
+                if (v.X < yMin) yMin = v.X;
+                if (v.X > yMax) yMax = v.X;
+                if (v.Y < zMin) zMin = v.Y;
+                if (v.Y > zMax) zMax = v.Y;
+            }
+            return new Vec2d(0.5 * (yMin + yMax), 0.5 * (zMin + zMax));
+        }
+
         private static void Straightness(BladeProfile p, int first, int last, BladeSpec spec, BladeReport r)
         {
-            Vec2d a = p.ToWorld(first, p.CentroidLocal(first));
-            Vec2d b = p.ToWorld(last, p.CentroidLocal(last));
+            Vec2d a = p.ToWorld(first, BoundsCenter(p, first));
+            Vec2d b = p.ToWorld(last, BoundsCenter(p, last));
             double xa = p.X[first], xb = p.X[last];
             double dev = 0.0;
             for (int s = first; s <= last; s++)
@@ -165,7 +186,7 @@ namespace ForgeBorn.Domain.Evaluation
                 if (p.Severed[s]) continue;
                 double u = (p.X[s] - xa) / (xb - xa);
                 Vec2d line = new Vec2d(a.X + (b.X - a.X) * u, a.Y + (b.Y - a.Y) * u);
-                Vec2d c = p.ToWorld(s, p.CentroidLocal(s));
+                Vec2d c = p.ToWorld(s, BoundsCenter(p, s));
                 double d = (c - line).Length;
                 if (d > dev) dev = d;
             }
@@ -198,8 +219,8 @@ namespace ForgeBorn.Domain.Evaluation
             }
         }
 
-        /// <summary>Included edge angle of the +Y edge from section thickness 2 mm and 6 mm behind the tip, plus thickness at 0.5 mm.</summary>
-        private static void EdgeAt(BladeProfile p, int s, ref double angSum, ref int angN, ref double t05Sum, ref int t05N)
+        /// <summary>Included edge angle of the +Y edge from section thickness 1 mm and 3 mm behind the tip, plus thickness at 0.5 mm.</summary>
+        private static void EdgeAt(BladeProfile p, int s, ref double angSum, ref int angN, ref double t05Sum, ref int t05N, ref double asymSum)
         {
             double yTip = double.MinValue, yMin = double.MaxValue;
             for (int j = 0; j < p.PerimeterCount; j++)
@@ -217,12 +238,15 @@ namespace ForgeBorn.Domain.Evaluation
                 t05N++;
             }
 
-            double zMin2, zMax2, zMin6, zMax6;
-            if (!p.ZExtentAt(s, yTip - 0.002, out zMin2, out zMax2)) return;
-            if (!p.ZExtentAt(s, yTip - 0.006, out zMin6, out zMax6)) return;
-            double t2 = zMax2 - zMin2, t6 = zMax6 - zMin6;
-            double slope = (t6 - t2) * 0.5 / 0.004;
+            // Thickness 1 mm and 3 mm behind the tip: a facet only a few millimetres wide still reads true (the old 2 mm / 6 mm pair
+            // reached past the end of any facet under 6 mm and under-read steep angles).
+            double zMin1, zMax1, zMin3, zMax3;
+            if (!p.ZExtentAt(s, yTip - 0.001, out zMin1, out zMax1)) return;
+            if (!p.ZExtentAt(s, yTip - 0.003, out zMin3, out zMax3)) return;
+            double t1 = zMax1 - zMin1, t3 = zMax3 - zMin3;
+            double slope = (t3 - t1) * 0.5 / 0.002;
             if (slope <= 1e-6) return; // no bevel at this station
+            if (t3 > 1e-6) asymSum += Math.Abs(zMax3 + zMin3) / t3;
             angSum += 2.0 * Math.Atan(slope) * 180.0 / Math.PI;
             angN++;
         }
