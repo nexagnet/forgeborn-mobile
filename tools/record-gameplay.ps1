@@ -21,7 +21,9 @@ param(
     [int]$DurationSeconds = 8,   # so giay mai sau 3 giay dung yen
     [double]$Fps = 4,            # so khung hinh luu moi giay
     [string]$Size = '1280x720',
-    [string]$OutRoot = ''
+    [string]$OutRoot = '',
+    [ValidateSet('grind', 'forge')]
+    [string]$Scenario = 'grind'   # forge = lo ren roi nuoc (mieng lo sang, hoi nuoc); grind = mai nhu truoc
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +44,7 @@ $frames = (Resolve-Path $frames).Path
 # 1) Chay game, doi thoat (toi da 3 + Duration + 120 giay vi luu PNG cham hon khung hinh)
 $gameArgs = @('-screen-fullscreen', '0', '-screen-width', $w, '-screen-height', $h,
               '-fb-frames', $frames, '-fb-duration', $DurationSeconds, '-fb-fps', $Fps)
+if ($Scenario -eq 'forge') { $gameArgs += @('-fb-scenario', 'forge') }
 $game = Start-Process -FilePath $Exe -ArgumentList $gameArgs -PassThru
 $limitMs = (3 + $DurationSeconds + 120) * 1000
 if (-not $game.WaitForExit($limitMs)) { Stop-Process -Id $game.Id -Force; throw 'Game khong thoat dung han, da dung.' }

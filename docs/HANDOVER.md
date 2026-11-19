@@ -140,3 +140,24 @@ Việc cần bạn: P5 (chơi bản .exe), đăng nhập lại Unity Hub khi h�
 - Chấm điểm đổi: góc mép đo ở 1 và 3 mm sau đầu mép; độ cong đo theo tâm khung bao. Có thể làm điểm các blade cũ khác đi chút.
 - Test: Domain 107/107 (`GrindFacetTests` mới, 12 test), Unity EditMode 59/59, capture "INPUT PATH OK" gồm kiểm góc 20° qua đường chạm thật (hội tụ 20,0° sau 4 vòng).
 - **Chưa kiểm khi chơi thật:** cảm giác số nhát (đá vừa 80 N chậm cho phôi dày; đá thô 150 N nhanh), vị trí nút "Góc" và "Lật" trên điện thoại.
+
+
+## Phiên 2026-11-19 (bàn giao)
+
+**Cách làm việc:** người dùng chỉ làm việc trên Linear (workspace phungviet, team 74, dự án FORGEBORN), viết tiếng Việt. Việc [Bạn] do họ tự Done; việc [Claude] do Claude Done khi đạt "Xong khi" kèm bằng chứng. Đầu mỗi phiên đọc Linear (việc Done, bình luận mới) trước khi làm. Commit và push chỉ khi người dùng bảo.
+
+**Đã làm (có test hoặc ảnh):**
+- Hướng dẫn bắt buộc 16 bước từ nhận đơn đến giao (`TutorialFlow.cs`), không bỏ qua được ở lần đầu (`PlayerPrefs` khóa `fb.tutorial.done`), tự lùi bước khi đổi phôi. Ảnh từng bước: `build/out/shots/tutorial/`. EditMode 62/62, Domain 107/107. **Chưa ai chơi thật bằng chuột** (74-27 đang In Review).
+- Chữ HUD to hơn (nút 28, thông số 27...), bỏ chữ debug "x ms" khỏi bản người chơi, viền bóng cho chữ, dòng gợi ý phím và chuột theo công cụ, nút "Lật [F]" (74-28, 74-35 mới xong đợt 1).
+- Số bản build trong menu chính (`BuildStamp.cs`, `BuildInfo.cs`): "Bản build: giờ | mã commit". Giờ của `ForgeBorn.exe` không đổi khi build lại; bản mới nằm ở `ForgeBorn_Data/Managed/ForgeBorn.Unity.dll`.
+- Quay khung hình khi game chạy thật: `tools\record-gameplay.ps1 [-Scenario grind|forge]` (cờ `-fb-frames`, `-fb-scenario forge`); game tự lưu khung hình, không quay màn hình người dùng. Quan sát: miệng lò đổi sáng đúng, hơi nước thấy ở ×1 nhưng biến mất ở ×60 (74-39).
+- **Lỗi đã sửa:** `ProjectSettings/TimeManager.asset` bị lưu `m_TimeScale: 0` (phiên Editor tạm dừng) nên mọi bản build khởi động với thời gian đứng; đã sửa file và thêm `Time.timeScale = 1` trong `ForgeSandbox.Initialize`.
+- `docs/PLAYTEST_CHECKLIST.md`: danh sách câu hỏi chơi thử cố định.
+
+**Phát hiện từ chơi thử (74-8):** bản PC khó hiểu vì điều khiển ẩn (nút công cụ là một nút xoay vòng MÀI/BÚA/XEM; Q/E, F, con lăn, chuột phải lia không có chỉ dẫn), chữ bé, và hoàn toàn chưa có vật lý trọng lực (lưỡi lơ lửng trước đe, không Rigidbody).
+
+**Việc còn mở (Linear):** 74-31 kiếm nằm trên đe + camera nhìn xuống (phương án A: kinematic, Domain không đổi), 74-32 thả kẹp thì đổ, 74-33 dựng lại tỷ lệ đe/lò, 74-34 hoạt ảnh búa + đo độ trễ, 74-29 camera, 74-28 đợt 2 (nhóm điều khiển theo nhiệm vụ), 74-35 đợt 2 (thước góc, vòng ngắm), 74-39 hơi nước ở ×60, 74-19/20 mô hình dầu và cong khi mài vát (hướng THỰC TẾ, nguồn ở 74-9), 74-38 [Bạn] chơi thử vòng 2.
+
+**Chưa kiểm chứng:** cảm giác chơi bằng chuột, âm thanh, hiệu năng trên máy khác, mọi thứ trên điện thoại. Claude không nghe được âm thanh.
+
+**Lệnh:** test Domain `dotnet test build/ForgeBorn.Domain.Tests`; EditMode `Unity.exe -batchmode -nographics -projectPath . -runTests -testPlatform EditMode -testResults build/out/editmode.xml`; build `...-executeMethod ForgeBorn.EditorTools.ForgeBornBuild.BuildWindows -quit` (Unity đóng); chụp `...ForgeBornCapture.Run -fb-size 1280x720` (không `-nographics`).

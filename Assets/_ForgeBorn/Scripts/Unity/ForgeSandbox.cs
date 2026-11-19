@@ -208,6 +208,9 @@ namespace ForgeBorn.UnityLayer
             if (Application.isPlaying) Loc.Current = _settings.ResolveLanguage();
             _persistCareer = !Application.isBatchMode && !AutomationRequested() && Application.isPlaying;
             if (_persistCareer) LoadCareer();
+            // ProjectSettings/TimeManager can be saved with timeScale 0 by an Editor session that was paused at the menu;
+            // every player would then start frozen. The main menu pauses again right after this when it is wanted.
+            Time.timeScale = 1f;
             // First time ever: the guide cannot be skipped until it has been completed once (stored in PlayerPrefs).
             _tutorial.Mandatory = _persistCareer && PlayerPrefs.GetInt(TutorialFlow.DonePrefsKey, 0) == 0;
             _profile = PlatformProfile.Current;
@@ -673,6 +676,10 @@ namespace ForgeBorn.UnityLayer
         private float _quenchStamp = -10f;
         private double[] _prevTemps;
         private Text _adviceText;
+        private Text _hintText;   // one line of mouse/key hints for the tool in hand (nothing on screen used to name Q/E, F, the wheel or right-drag)
+        public const string HintGrind = "GRIND: hold left mouse, drag along the edge  |  Q/E angle  |  F flip  |  Ctrl+wheel force  |  right-drag to pan  |  wheel to zoom";
+        public const string HintHammer = "HAMMER: left-click the blade while it glows orange  |  Ctrl+wheel strike force  |  right-drag to pan  |  wheel to zoom  |  key 3: grinder";
+        public const string HintInspect = "VIEW: hold left mouse and drag to turn the blade  |  right-drag to pan  |  wheel to zoom  |  key 2: hammer, key 3: grinder";
         private float _adviceTimer, _adviceEval;
         private string _adviceCache = "";
 
@@ -918,7 +925,7 @@ namespace ForgeBorn.UnityLayer
                 {
                     if (res.LastStation >= 0) _builder.Rebuild(res.FirstStation, res.LastStation);
                     contact = res.ContactSubsteps > 0;
-                    _status = contact ? Loc.F("grind {0} ms", SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2)) : Loc.T("no contact");
+                    _status = contact ? (ShowTimings ? Loc.F("grind {0} ms", SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2)) : "") : Loc.T("no contact");
                 }
             }
             _prev = cur;
@@ -1000,8 +1007,12 @@ namespace ForgeBorn.UnityLayer
             string temp = SandboxRules.F(res.HitTempK - 273.15, 0) + " C";
             if (res.StationsTouched == 0) _status = Loc.F("hammer: no deformation ({0})", temp);
             else if (res.Cold) _status = Loc.F("COLD hammering at {0}: dent {1} mm, crack risk +{2}", temp, SandboxRules.F(res.DepthM * 1000.0, 2), SandboxRules.F(res.DamageAdded, 2));
-            else _status = Loc.F("hammer at {0}: dent {1} mm, {2} ms", temp, SandboxRules.F(res.DepthM * 1000.0, 2), SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2));
+            else if (ShowTimings) _status = Loc.F("hammer at {0}: dent {1} mm, {2} ms", temp, SandboxRules.F(res.DepthM * 1000.0, 2), SandboxRules.F(_sw.Elapsed.TotalMilliseconds, 2));
+            else _status = Loc.F("hammer at {0}: dent {1} mm", temp, SandboxRules.F(res.DepthM * 1000.0, 2));
         }
+
+        /// <summary>Solver timings are for developers: players do not need "5.8 ms" in the status line.</summary>
+        private static bool ShowTimings { get { return Application.isEditor || UnityEngine.Debug.isDebugBuild; } }
 
         // ---------------------------------------------------------------- inspect
 
@@ -1095,8 +1106,8 @@ namespace ForgeBorn.UnityLayer
             safe.offsetMin = safe.offsetMax = Vector2.zero;
 
             // Readout panel top right, status line above the bottom bar.
-            _infoText = MakeText(safe, "Info", 22, TextAnchor.UpperLeft, new Vector2(0.72f, 0.70f), new Vector2(0.995f, 0.99f), Vector2.zero, Vector2.zero);
-            _statusText = MakeText(safe, "Status", 20, TextAnchor.LowerLeft, new Vector2(0.135f, 0.10f), new Vector2(0.995f, 0.15f), Vector2.zero, Vector2.zero);
+            _infoText = MakeText(safe, "Info", 27, TextAnchor.UpperLeft, new Vector2(0.71f, 0.82f), new Vector2(0.995f, 0.99f), Vector2.zero, Vector2.zero);
+            _statusText = MakeText(safe, "Status", 26, TextAnchor.LowerLeft, new Vector2(0.135f, 0.10f), new Vector2(0.995f, 0.15f), Vector2.zero, Vector2.zero);
 
             // Left column: tool, option, the five environments (stations 1-5), zoom.
             const float colX0 = 0.005f, colX1 = 0.125f, rowH = 0.085f, rowStep = 0.095f, top = 0.99f;
@@ -1129,7 +1140,7 @@ namespace ForgeBorn.UnityLayer
             _orderBtn = MakeButton(safe, Loc.T("Order"), BarMin(), BarMax(), CycleOrder); slot++;
             _deliverBtn = MakeButton(safe, Loc.T("Deliver"), BarMin(), BarMax(), Deliver); slot++;
             _reportBtn = MakeButton(safe, Loc.T("Report"), BarMin(), BarMax(), ToggleReport); slot++;
-            _flipLabel = MakeButton(safe, Loc.T("Flip"), BarMin(), BarMax(), FlipBlade); slot++;
+            _flipLabel = MakeButton(safe, Loc.T("Flip") + " [F]", BarMin(), BarMax(), FlipBlade); slot++;
             MakeButton(safe, Loc.T("Undo"), BarMin(), BarMax(), Undo); slot++; // touch screens have no Ctrl+Z
             MakeButton(safe, Loc.T("Guide"), BarMin(), BarMax(), () => { _tutorial.Restart(); _hammerHits = 0; _flipCount = 0; RefreshHud(); }); slot++;
             MakeButton(safe, Loc.T("Save"), BarMin(), BarMax(), Save); slot++;
@@ -1146,15 +1157,18 @@ namespace ForgeBorn.UnityLayer
             var img = _reportPanel.GetComponent<Image>();
             img.color = new Color(0.05f, 0.06f, 0.08f, 0.78f);
             img.raycastTarget = false;
-            _reportText = MakeText(prt, "ReportText", 18, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
+            _reportText = MakeText(prt, "ReportText", 24, TextAnchor.UpperLeft, Vector2.zero, Vector2.one, new Vector2(14, 10), new Vector2(-14, -10));
             _reportPanel.SetActive(false);
             _aim = new AimAssist(safe);
-            _goalText = MakeText(safe, "Goals", 20, TextAnchor.UpperRight, new Vector2(0.60f, 0.58f), new Vector2(0.99f, 0.86f), Vector2.zero, Vector2.zero);
+            _goalText = MakeText(safe, "Goals", 27, TextAnchor.UpperRight, new Vector2(0.58f, 0.56f), new Vector2(0.99f, 0.80f), Vector2.zero, Vector2.zero);
             _goalText.raycastTarget = false; // must not swallow grind/hammer clicks
             _goalText.supportRichText = true;
-            _adviceText = MakeText(safe, "Advice", 19, TextAnchor.UpperRight, new Vector2(0.55f, 0.36f), new Vector2(0.99f, 0.57f), Vector2.zero, Vector2.zero);
+            _adviceText = MakeText(safe, "Advice", 26, TextAnchor.UpperRight, new Vector2(0.45f, 0.15f), new Vector2(0.99f, 0.32f), Vector2.zero, Vector2.zero);
             _adviceText.raycastTarget = false;
             _adviceText.supportRichText = true;
+            _hintText = MakeText(safe, "Hint", 24, TextAnchor.LowerLeft, new Vector2(0.135f, 0.155f), new Vector2(0.995f, 0.205f), Vector2.zero, Vector2.zero);
+            _hintText.raycastTarget = false;
+            _hintText.color = new Color(0.62f, 0.85f, 1f);
             BuildShop(safe);
             BuildMenus(safe); // last child, so the menus draw over everything
 
@@ -1166,7 +1180,7 @@ namespace ForgeBorn.UnityLayer
             var rt = _tutPanel.GetComponent<RectTransform>();
             rt.SetParent(safe, false);
             rt.anchorMin = new Vector2(0.135f, 0.78f);
-            rt.anchorMax = new Vector2(0.715f, 0.99f);
+            rt.anchorMax = new Vector2(0.69f, 0.99f);
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             var img = _tutPanel.GetComponent<Image>();
             img.color = new Color(0.07f, 0.06f, 0.05f, 0.86f);
@@ -1279,6 +1293,8 @@ namespace ForgeBorn.UnityLayer
                 + "   " + Loc.T(_env.ToString()) + "  x" + SandboxRules.F(SandboxRules.TimeScales[_speedIndex], 0)
                 + (_profile.Simulated ? "   [" + _profile.Name + "]" : "");
             _statusText.text = _status;
+            if (_hintText != null)
+                _hintText.text = Loc.T(_tool == ToolMode.Hammer ? HintHammer : _tool == ToolMode.Grind ? HintGrind : HintInspect);
             if (_angleLabel != null) _angleLabel.text = Loc.F("Angle {0} deg", SandboxRules.F(GrindAngle, 0));
             _toolLabel.text = Loc.T(_tool.ToString().ToUpperInvariant());
             _optionLabel.text = _tool == ToolMode.Hammer ? Loc.T(_faces[_faceIndex].Id.Replace("hammer_", "").Replace("_v1", ""))
@@ -1411,6 +1427,17 @@ namespace ForgeBorn.UnityLayer
         }
 
         public void CaptureDeliver() { Deliver(); RefreshHud(); }
+
+        /// <summary>Automation hook (PlayerAutomation -fb-scenario forge): pick the station and time scale as a player would.</summary>
+        public void AutomationSetEnvAndSpeed(ForgeEnv env, double timeScale)
+        {
+            _env = env;
+            int best = 0;
+            for (int i = 1; i < SandboxRules.TimeScales.Length; i++)
+                if (System.Math.Abs(SandboxRules.TimeScales[i] - timeScale) < System.Math.Abs(SandboxRules.TimeScales[best] - timeScale)) best = i;
+            _speedIndex = best;
+            _hudTimer = 0f;
+        }
 
         private bool _tutFrozen; // capture only: keep the shown tutorial step even if its goal is already met
 

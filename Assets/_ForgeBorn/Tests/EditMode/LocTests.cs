@@ -84,6 +84,9 @@ namespace ForgeBorn.Tests
                 Assert.IsTrue(Loc.HasVietnamese(st.Why), "why: " + st.Why);
                 Assert.IsTrue(Loc.HasVietnamese(st.Action), "action: " + st.Action);
             }
+            Assert.IsTrue(Loc.HasVietnamese(ForgeSandbox.HintGrind), "grind hint");
+            Assert.IsTrue(Loc.HasVietnamese(ForgeSandbox.HintHammer), "hammer hint");
+            Assert.IsTrue(Loc.HasVietnamese(ForgeSandbox.HintInspect), "view hint");
             Assert.IsTrue(Loc.HasVietnamese("Too cold to forge! Put it back in the Furnace."));
             Assert.IsTrue(Loc.HasVietnamese("The blade cracked. Press Order for a new blade and quench gentler next time."));
         }

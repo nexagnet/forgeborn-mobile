@@ -223,6 +223,14 @@ namespace ForgeBorn.UnityLayer
               "Đó là cả chu trình: nhận đơn, nung, rèn, mài, tôi, ram, giao. Các đơn sau trả nhiều hơn và đòi hỏi cao hơn.");
             A("Click Next to keep playing.", "Bấm Tiếp để chơi tiếp.");
             A("Build", "Bản build");
+            // ---- on-screen key and mouse hints (74-35)
+            A("GRIND: hold left mouse, drag along the edge  |  Q/E angle  |  F flip  |  Ctrl+wheel force  |  right-drag to pan  |  wheel to zoom",
+              "MÀI: giữ chuột trái, kéo dọc mép lưỡi  |  Q/E đổi góc  |  F lật lưỡi  |  Ctrl+lăn đổi lực  |  chuột phải kéo để lia  |  lăn để phóng");
+            A("HAMMER: left-click the blade while it glows orange  |  Ctrl+wheel strike force  |  right-drag to pan  |  wheel to zoom  |  key 3: grinder",
+              "BÚA: bấm chuột trái lên lưỡi khi đang sáng cam  |  Ctrl+lăn đổi lực đập  |  chuột phải kéo để lia  |  lăn để phóng  |  phím 3: máy mài");
+            A("VIEW: hold left mouse and drag to turn the blade  |  right-drag to pan  |  wheel to zoom  |  key 2: hammer, key 3: grinder",
+              "XEM: giữ chuột trái và kéo để xoay lưỡi  |  chuột phải kéo để lia  |  lăn để phóng  |  phím 2: búa, phím 3: máy mài");
+            A("hammer at {0}: dent {1} mm", "búa ở {0}: móp {1} mm");
             return d;
         }
     }

@@ -21,6 +21,10 @@ namespace ForgeBorn.UnityLayer
             t.alignment = anchor;
             t.color = Color.white;
             t.raycastTarget = false;
+            // A dark edge keeps text readable over the busy stone/anvil background.
+            var sh = go.AddComponent<Shadow>();
+            sh.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            sh.effectDistance = new Vector2(2f, -2f);
             return t;
         }
 
@@ -36,7 +40,11 @@ namespace ForgeBorn.UnityLayer
             rt.offsetMax = new Vector2(-3f, 0f);
             go.GetComponent<Image>().color = ButtonIdle;
             go.GetComponent<Button>().onClick.AddListener(onClick);
-            Text t = MakeText(rt, "Label", 22, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            // Large label (28 at the 1080p reference = about 19 px at 1280x720); long words shrink to fit but never below 20.
+            Text t = MakeText(rt, "Label", 28, TextAnchor.MiddleCenter, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            t.resizeTextForBestFit = true;
+            t.resizeTextMinSize = 20;
+            t.resizeTextMaxSize = 28;
             t.text = label;
             return t;
         }

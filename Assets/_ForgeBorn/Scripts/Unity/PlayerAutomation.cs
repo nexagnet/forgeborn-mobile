@@ -51,7 +51,7 @@ namespace ForgeBorn.UnityLayer
             if (shot != null)
                 pa.StartCoroutine(pa.RunScreenshot(shot, ParseFloat(ArgValue(args, "-fb-wait"), 3f)));
             else if (frames != null)
-                pa.StartCoroutine(pa.RunFrames(frames, ParseFloat(ArgValue(args, "-fb-duration"), 8f), ParseFloat(ArgValue(args, "-fb-fps"), 4f)));
+                pa.StartCoroutine(pa.RunFrames(frames, ParseFloat(ArgValue(args, "-fb-duration"), 8f), ParseFloat(ArgValue(args, "-fb-fps"), 4f), ArgValue(args, "-fb-scenario")));
             else
                 pa.StartCoroutine(pa.RunBenchmark(ParseFloat(bench, 8f), ArgValue(args, "-fb-out")));
         }
@@ -99,8 +99,12 @@ namespace ForgeBorn.UnityLayer
         /// ForgeBorn.exe -fb-frames dir [-fb-duration 8] [-fb-fps 4]  ->  dir/f_0001.png ... and dir/frames.csv (index,seconds,phase).
         /// Frames are read back from the player's own render target, so nothing on the user's desktop is captured.
         /// </summary>
-        private IEnumerator RunFrames(string dir, float loadSeconds, float fps)
+        private IEnumerator RunFrames(string dir, float loadSeconds, float fps, string scenario)
         {
+            // scenario "forge": 3 s idle in air, then half the duration in the furnace, then the rest in water (time x60):
+            // shows the furnace mouth glow, the heating colour and the quench steam. Default (null): grind as before.
+            bool forge = string.Equals(scenario, "forge", StringComparison.OrdinalIgnoreCase);
+            int stage = -1;
             if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.persistentDataPath, "frames");
             Directory.CreateDirectory(Path.GetFullPath(dir));
 
@@ -118,7 +122,7 @@ namespace ForgeBorn.UnityLayer
             }
             for (int i = 0; i < WarmupFrames; i++) yield return null;
 
-            var csv = new System.Text.StringBuilder("index,seconds,phase\n");
+            var csv = new System.Text.StringBuilder("index,seconds,phase,max_temp_c,unity_time_scale\n");
             float interval = 1f / Mathf.Max(0.5f, fps);
             float start = Time.realtimeSinceStartup;
             float total = IdleSeconds + loadSeconds;
@@ -131,7 +135,16 @@ namespace ForgeBorn.UnityLayer
             {
                 float t = Time.realtimeSinceStartup - start;
                 if (t >= total) break;
-                bool grinding = t >= IdleSeconds;
+                bool grinding = t >= IdleSeconds && !forge;
+                if (forge && t >= IdleSeconds)
+                {
+                    int want = t < IdleSeconds + loadSeconds * 0.5f ? 1 : 2;
+                    if (want != stage)
+                    {
+                        stage = want;
+                        sb.AutomationSetEnvAndSpeed(want == 1 ? ForgeEnv.Furnace : ForgeEnv.Water, want == 1 ? 60.0 : 1.0); // quench at x1: at x60 it ends inside one frame
+                    }
+                }
                 if (grinding)
                 {
                     float x0 = w * (up ? 0.40f : 0.60f), x1 = w * (up ? 0.60f : 0.40f);
@@ -146,7 +159,8 @@ namespace ForgeBorn.UnityLayer
                     {
                         index++;
                         File.WriteAllBytes(Path.Combine(dir, "f_" + index.ToString("D4", CultureInfo.InvariantCulture) + ".png"), tex.EncodeToPNG());
-                        csv.Append(index).Append(',').Append(F(t, 2)).Append(',').Append(grinding ? "grind" : "idle").Append('\n');
+                        csv.Append(index).Append(',').Append(F(t, 2)).Append(',').Append(forge ? (stage == 1 ? "furnace" : stage == 2 ? "water" : "idle") : grinding ? "grind" : "idle")
+                           .Append(',').Append(F(SandboxRules.MaxTempK(sb.Session.Profile) - 273.15, 0)).Append(',').Append(F(Time.timeScale, 1)).Append('\n');
                     }
                     catch (Exception e)
                     {
