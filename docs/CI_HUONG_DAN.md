@@ -26,3 +26,4 @@ Xem tab Actions, workflow "Nexagnet Reviewer caller": dòng `REVIEWER_GATE_BLOCK
 
 ## Ghi chú
 PR mẫu thử Reviewer (chỉ sửa tài liệu, sẽ đóng không merge).
+Commit thứ hai để kiểm tra kết quả review cũ không dùng lại được.
