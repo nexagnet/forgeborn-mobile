@@ -5,7 +5,7 @@
 2. CI `ci` tự chạy, gồm hai job:
    - `domain-tests`: `dotnet test build/ForgeBorn.Domain.Tests` (107 test, không cần Unity).
    - `meta-check`: mọi file/thư mục dưới `Assets/` có `.meta`, không có `.meta` mồ côi (`.meta` của thư mục rỗng chỉ cảnh báo).
-3. (Sau khi thêm caller Reviewer, PR kế tiếp.) Khi `ci` xanh và PR ở trạng thái Ready, Reviewer AI (chỉ đọc) tự chạy và comment `NEXAGNET_REVIEWER PASS` hoặc `REQUEST_CHANGES` kèm HEAD và run CI. Commit mới thì kết quả cũ không còn dùng được.
+3. Khi `ci` xanh và PR ở trạng thái Ready, Reviewer AI (caller: `.github/workflows/nexagnet-claude-reviewer.yml`, cần secret `CLAUDE_CODE_OAUTH_TOKEN` của repo) (chỉ đọc) tự chạy và comment `NEXAGNET_REVIEWER PASS` hoặc `REQUEST_CHANGES` kèm HEAD và run CI. Commit mới thì kết quả cũ không còn dùng được.
 4. Chủ dự án merge. Bot tự merge chưa bật (cần GitHub App merge và ruleset do chủ tạo).
 
 ## Chạy tại máy
