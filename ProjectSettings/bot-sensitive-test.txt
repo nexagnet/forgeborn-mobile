@@ -1,0 +1,1 @@
+Test file for bot sensitive-path check. Safe to delete. Do not merge.
