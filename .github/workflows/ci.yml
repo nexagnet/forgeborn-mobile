@@ -2,6 +2,8 @@ name: ci
 
 on:
   pull_request:
+    # ready_for_review: Draft -> Ready chạy lại ci để Reviewer (workflow_run) được kích hoạt.
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 

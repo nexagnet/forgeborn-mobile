@@ -23,6 +23,3 @@ EditMode (62 test), build Windows và chơi thật không nằm trong CI. PR đ�
 
 ## Reviewer bị lỗi/đỏ thì sao
 Xem tab Actions, workflow "Nexagnet Reviewer caller": dòng `REVIEWER_GATE_BLOCKED: <lý do>` nói rõ thiếu gì (CI chưa xanh, job thiếu, PR Draft thì bỏ qua êm, tác giả chưa nằm trong danh sách tin cậy...).
-
-## Ghi chú CI
-PR mẫu để thử Reviewer dùng chung (chỉ sửa tài liệu).
