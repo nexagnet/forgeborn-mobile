@@ -26,3 +26,5 @@ Xem tab Actions, workflow "Nexagnet Reviewer caller": dòng `REVIEWER_GATE_BLOCK
 
 ## Bot tự merge
 Sau khi `ci` xanh và Reviewer PASS đúng HEAD, bot (`nexagnet-claude-autonomy.yml`) tự squash merge PR Ready. Bot không merge khi: PR là Draft, có nhãn `needs-human`, chạm `.github/**` hay đường dẫn nhạy cảm của dự án (`ProjectSettings/**`, `Packages/manifest.json`, `Packages/packages-lock.json`), hoặc HEAD đổi sau lần review. Khi đó PR chỉ nhận comment `READY_FOR_MANUAL_MERGE` hoặc `AUTO_MERGE_STOPPED`; chủ xem và merge tay.
+
+Ghi chú thử bot (ca Draft/needs-human/HEAD cũ); PR sẽ đóng, không merge.

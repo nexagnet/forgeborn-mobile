@@ -1,1 +1,0 @@
-Tệp thử bot merge ca nhạy cảm; PR sẽ đóng, không merge.
