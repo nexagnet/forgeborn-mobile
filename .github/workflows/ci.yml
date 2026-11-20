@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  domain-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Domain tests (.NET 8, không cần Unity)
+        run: dotnet test build/ForgeBorn.Domain.Tests --nologo --verbosity minimal
+
+  meta-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Test của script meta-check
+        run: bash tools/ci/meta-check.test.sh
+      - name: Mọi asset có .meta, không có .meta mồ côi
+        run: bash tools/ci/meta-check.sh .

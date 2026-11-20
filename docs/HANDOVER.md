@@ -11,7 +11,7 @@ Cập nhật: 2026-11-18. File này nói game đang ở đâu và làm gì tiế
 | Test | Domain `dotnet test` **80/80**; Unity EditMode **53/53** (2026-11-18, sau P3) |
 | Giai đoạn | P0, P0.5, P1, **P3 xong về mã và test** (xem §6 "P3"); kế tiếp P4 hoặc cổng P5 (cần bạn chơi) |
 | Bản Windows | **Build được và chạy được** (123.9 MB, `build/out/win/ForgeBorn.exe`); đo trên Intel UHD ở 1280x720: nhàn rỗi 4.4 ms, mài 16.0 ms trung bình (p95 22.3 ms). Xem `BENCHMARKS.md` |
-| Git | Nhánh `main`, các commit cục bộ chưa push |
+| Git | Nhánh `main` đã có trên GitHub (`nexagnet/forgeborn-mobile`); thay đổi mới đi qua nhánh + PR, CI `ci` phải xanh (xem `docs/CI_HUONG_DAN.md`) |
 | Chưa kiểm chứng | Cảm giác chơi (chuột), giao diện bản PC (đang là bố cục điện thoại kéo ra khung ngang), 1920x1080 (treo lúc khởi động), âm thanh nghe thật, GPU khác, mọi thứ trên điện thoại |
 | Lưu ý lỗi thời | Chuỗi UI và hướng dẫn 13 bước trong mã là **tiếng Anh** (nhiều bước nói "Tap"), không phải tiếng Việt |
 
@@ -144,7 +144,7 @@ Việc cần bạn: P5 (chơi bản .exe), đăng nhập lại Unity Hub khi h�
 
 ## Phiên 2026-11-19 (bàn giao)
 
-**Cách làm việc:** người dùng chỉ làm việc trên Linear (workspace phungviet, team 74, dự án FORGEBORN), viết tiếng Việt. Việc [Bạn] do họ tự Done; việc [Claude] do Claude Done khi đạt "Xong khi" kèm bằng chứng. Đầu mỗi phiên đọc Linear (việc Done, bình luận mới) trước khi làm. Commit và push chỉ khi người dùng bảo.
+**Cách làm việc:** người dùng chỉ làm việc trên Linear (workspace phungviet, team 74, dự án FORGEBORN), viết tiếng Việt. Việc [Bạn] do họ tự Done; việc [Claude] do Claude Done khi đạt "Xong khi" kèm bằng chứng. Đầu mỗi phiên đọc Linear (việc Done, bình luận mới) trước khi làm. Từ khi có CI: làm trên nhánh `claude/…`, mở PR, CI `ci` xanh rồi mới merge; không push thẳng `main`.
 
 **Đã làm (có test hoặc ảnh):**
 - Hướng dẫn bắt buộc 16 bước từ nhận đơn đến giao (`TutorialFlow.cs`), không bỏ qua được ở lần đầu (`PlayerPrefs` khóa `fb.tutorial.done`), tự lùi bước khi đổi phôi. Ảnh từng bước: `build/out/shots/tutorial/`. EditMode 62/62, Domain 107/107. **Chưa ai chơi thật bằng chuột** (74-27 đang In Review).
